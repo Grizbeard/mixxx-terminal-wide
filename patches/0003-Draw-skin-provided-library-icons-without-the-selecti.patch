@@ -1,0 +1,64 @@
+From 675acf0e7bae35163f84250867bc533fe5d36bed Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Thu, 3 Sep 2026 22:39:45 -0500
+Subject: [PATCH 03/11] Draw skin-provided library icons without the selection
+ tint
+
+QIcon has no pixmap registered for QIcon::Selected, so QSvgIconEngine
+renders one by blending the Normal pixmap 30% towards
+QPalette::Highlight. That palette entry comes from the application
+palette, which on Windows is seeded from the OS accent colour, so the
+icon on the highlighted sidebar row was tinted towards a colour that has
+nothing to do with the skin -- here a burnt orange over the sage the
+skin had asked for.
+
+The widget stylesheet cannot reach it: QIcon asks
+QApplicationPrivate::applyQIconStyleHelper, which builds a bare
+QStyleOption from qApp's palette rather than the sidebar's, so
+selection-background-color on WLibrarySidebar has no effect.
+
+Name the same file for the Selected mode as well. QSvgIconEngine only
+generates a tinted variant when the mode it could load differs from the
+one asked for, so an explicit entry makes it load the file directly and
+the icon is drawn in the colour it was authored in. Disabled is left to
+be generated, so disabled items still grey out.
+
+Only skins that ship their own icons are affected; a skin using the
+built-in icons keeps the previous behaviour.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ src/library/libraryfeature.cpp | 17 +++++++++++++++--
+ 1 file changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/src/library/libraryfeature.cpp b/src/library/libraryfeature.cpp
+index 60095edf..964a74c7 100644
+--- a/src/library/libraryfeature.cpp
++++ b/src/library/libraryfeature.cpp
+@@ -66,8 +66,21 @@ LibraryFeature::LibraryFeature(
+           m_iconName(iconName) {
+     if (!m_iconName.isEmpty()) {
+         const QString overridePath = skinIconPath(m_pConfig, m_iconName);
+-        m_icon = QIcon(overridePath.isEmpty() ? kIconPath.arg(m_iconName)
+-                                              : overridePath);
++        if (overridePath.isEmpty()) {
++            m_icon = QIcon(kIconPath.arg(m_iconName));
++        } else {
++            m_icon = QIcon(overridePath);
++            // QIcon generates the pixmap for a selected row by blending the
++            // Normal one 30% towards QPalette::Highlight, which on Windows is
++            // the OS accent colour and so is unrelated to the skin. Naming the
++            // file for the Selected mode as well makes QSvgIconEngine load it
++            // directly instead of generating a tinted variant, so an icon a
++            // skin ships is drawn in the colour it was authored in. Disabled
++            // is deliberately left to be generated, so disabled items still
++            // grey out.
++            m_icon.addFile(overridePath, QSize(), QIcon::Selected, QIcon::Off);
++            m_icon.addFile(overridePath, QSize(), QIcon::Selected, QIcon::On);
++        }
+     }
+ }
+ 
+-- 
+2.53.0.windows.3
+

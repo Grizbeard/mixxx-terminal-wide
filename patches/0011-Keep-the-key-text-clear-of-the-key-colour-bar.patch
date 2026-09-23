@@ -1,0 +1,61 @@
+From 2e8ab784a5d7708ffabb1816fae93c590d12702f Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Mon, 21 Sep 2026 13:20:34 -0500
+Subject: [PATCH 11/11] Keep the key text clear of the key colour bar
+
+WKey draws a 4px two-tone colour bar and then starts the text at the
+bar's right edge, so the first glyph and the bar butt together and read
+as one smudged mark rather than a marker and a value. Leave a 4px gap.
+
+While here, measure and draw the text in the same rect, and take its
+origin from the same place the bar's comes from. It was drawn at an
+absolute 4px and elided against the full widget width, which is only the
+bar's right edge and the drawable width while the widget has no padding
+of its own.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ src/widget/wkey.cpp | 15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/src/widget/wkey.cpp b/src/widget/wkey.cpp
+index 70ab629a..0b5490b3 100644
+--- a/src/widget/wkey.cpp
++++ b/src/widget/wkey.cpp
+@@ -109,6 +109,9 @@ void WKey::paintEvent(QPaintEvent* event) {
+     const QRect contRect = pStyle->subElementRect(QStyle::SE_FrameContents, &option, this);
+ 
+     const int rectWidth = 4;
++    // Keep the text clear of the colour bar. Butted against it the first glyph
++    // and the bar read as one smudged mark rather than a marker and a value.
++    const int textGap = 4;
+     const int splitHeight = static_cast<int>(contRect.height() * splitPoint);
+ 
+     painter.fillRect(contRect.left(),
+@@ -125,14 +128,20 @@ void WKey::paintEvent(QPaintEvent* event) {
+ 
+     painter.setPen(option.palette.text().color());
+ 
++    // Measured and drawn in the same rect, and from the same origin the bar is
++    // drawn from: the text used to start at an absolute 4px, which is only the
++    // bar's right edge while the widget has no padding of its own.
++    const int textLeft = contRect.left() + rectWidth + textGap;
++    const int textWidth = contRect.width() - rectWidth - textGap;
++
+     QString elidedText = option.fontMetrics.elidedText(
+             text(),
+             Qt::ElideRight,
+-            width() - rectWidth);
++            textWidth);
+ 
+-    painter.drawText(rectWidth,
++    painter.drawText(textLeft,
+             contRect.top(),
+-            contRect.width() - rectWidth,
++            textWidth,
+             contRect.height(),
+             static_cast<int>(alignment()),
+             elidedText);
+-- 
+2.53.0.windows.3
+

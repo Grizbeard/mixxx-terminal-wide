@@ -3,9 +3,9 @@
 Builds the colour layer of [`mixxx/skins/Terminal-wide`](../../mixxx/skins/Terminal-wide).
 
 ```bash
-python tools/terminal_wide/generate.py                # all palettes
-python tools/terminal_wide/generate.py --palette btop
-python tools/terminal_wide/generate.py --check        # write nothing, fail if stale
+python tools/generate.py                # all palettes
+python tools/generate.py --palette btop
+python tools/generate.py --check        # write nothing, fail if stale
 ```
 
 Run it after editing anything in this directory. It rewrites generated files in
@@ -61,7 +61,7 @@ flattening Mixxx's own icons and repainting them. So they are **copied** rather
 than regenerated:
 
 ```bash
-python tools/terminal_wide/generate.py --from-terminal /path/to/mixxx-terminal-skin
+python tools/generate.py --from-terminal /path/to/mixxx-terminal-skin
 ```
 
 This repo has no Mixxx source tree to flatten icons from, and duplicating that

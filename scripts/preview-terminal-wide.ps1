@@ -32,8 +32,11 @@ param(
     [string]$Scheme = "Btop",
     [int]$Width = 1920,
     [int]$Height = 480,
-    [string]$Exe = "C:\Users\jmorken\projects\mixxx-terminal-skin\build\x64_relwithdebinfo\mixxx.exe",
-    [string]$ResourcePath = "C:\Users\jmorken\projects\mixxx-terminal-skin\res",
+    # Point MIXXX_EXE and MIXXX_RES at your own build, or pass -Exe / -ResourcePath.
+    [string]$Exe = $(if ($env:MIXXX_EXE) { $env:MIXXX_EXE }
+                     else { "C:\Users\jmorken\projects\mixxx-terminal-skin\build\x64_relwithdebinfo\mixxx.exe" }),
+    [string]$ResourcePath = $(if ($env:MIXXX_RES) { $env:MIXXX_RES }
+                              else { "C:\Users\jmorken\projects\mixxx-terminal-skin\res" }),
     [string]$SettingsPath = "$env:LOCALAPPDATA\Mixxx-terminal-wide-preview",
     [string[]]$Tracks = @(),
     [switch]$ShowMenuBar
@@ -41,7 +44,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $skinName = "Terminal-wide"
-$skinSource = Join-Path (Split-Path -Parent $PSScriptRoot) "mixxx\skins\$skinName"
+$skinSource = Join-Path (Split-Path -Parent $PSScriptRoot) $skinName
 
 if (-not (Test-Path $Exe)) { throw "no Mixxx binary at $Exe" }
 if (-not (Test-Path $skinSource)) { throw "no skin at $skinSource" }

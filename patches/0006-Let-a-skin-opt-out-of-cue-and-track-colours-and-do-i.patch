@@ -1,0 +1,188 @@
+From dcf5e98017c62c89332bcafa2a392830e9f913e1 Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Tue, 8 Sep 2026 13:33:02 -0500
+Subject: [PATCH 06/11] Let a skin opt out of cue and track colours, and do it
+ in the mono schemes
+
+Cue colours and track colours come from the user's colour palette, so they
+bear no relation to the skin's. A scheme with several hues absorbs them; a
+single-hue one has nowhere to put them, and a stray orange hotcue was then
+the only colour on a monochrome screen.
+
+Four places paint them, and they needed three different answers.
+
+The track colour washed over a library row is already a skin setting --
+<TrackTableBackgroundColorOpacity>, 0.175 here -- so the monochrome
+schemes set it to 0. No core change at all. The colour column proper is
+painted straight onto the viewport by ColorDelegate, which reads
+mixxxColorDelegateUseRowBackgroundForColorCell off the table view first,
+so the stylesheet sets that too; the column is not in the default layout,
+so that half is set but was not exercised.
+
+The other two do need core support, added as a widget option in the same
+vein as the DimBrightThreshold and Hover already on these widgets:
+
+- <UseCueColor>false</UseCueColor> on a HotcueButton stops it injecting
+  the cue's colour as its own stylesheet, so the skin's qss styles it like
+  any other latched button. The light/dark hints it publishes for qss are
+  suppressed with it, since they describe a colour no longer in play.
+- The same on a <Mark> or <DefaultMark> keeps the <Color> the skin
+  declared instead of adopting the cue's. Cue colours now arrive through
+  WaveformMark::setCueColor, which is the one place that decision is made;
+  the waveform and the overview both go through it.
+
+Both default to true, so every other skin is unaffected, and Btop keeps
+its colours.
+
+Verified with a hotcue set on a loaded track: the button is #ff8000 under
+Btop and #33ff3a under Green Phosphor, and the waveform strip holds 366
+cue-coloured pixels under Btop against none under Green Phosphor. With a
+track coloured red, its library row is washed #2d0000 under Btop and is
+left black under Green Phosphor.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ src/waveform/renderers/waveformmark.cpp         |  3 +++
+ src/waveform/renderers/waveformmark.h           | 17 +++++++++++++++++
+ .../renderers/waveformrendermarkbase.cpp        |  2 +-
+ src/widget/whotcuebutton.cpp                    | 10 +++++++++-
+ src/widget/whotcuebutton.h                      |  5 +++++
+ src/widget/woverview.cpp                        |  2 +-
+ 6 files changed, 36 insertions(+), 3 deletions(-)
+
+diff --git a/src/waveform/renderers/waveformmark.cpp b/src/waveform/renderers/waveformmark.cpp
+index 4cf4746c..0291338e 100644
+--- a/src/waveform/renderers/waveformmark.cpp
++++ b/src/waveform/renderers/waveformmark.cpp
+@@ -227,6 +227,9 @@ WaveformMark::WaveformMark(const QString& group,
+         m_pVisibleCO = std::make_unique<ControlProxy>(key);
+     }
+ 
++    m_useCueColor =
++            context.selectBool(node, QStringLiteral("UseCueColor"), true);
++
+     QColor color(context.selectString(node, "Color"));
+     if (!color.isValid()) {
+         // As a fallback, grab the color from the parent's AxesColor
+diff --git a/src/waveform/renderers/waveformmark.h b/src/waveform/renderers/waveformmark.h
+index 9c8477fc..35d7f455 100644
+--- a/src/waveform/renderers/waveformmark.h
++++ b/src/waveform/renderers/waveformmark.h
+@@ -183,6 +183,20 @@ class WaveformMark {
+     // Sets the appropriate mark colors based on the base color
+     void setBaseColor(QColor baseColor, int dimBrightThreshold);
+ 
++    /// Adopt the colour the cue at this mark carries, unless the skin asked
++    /// its marks to keep their own with <UseCueColor>false</UseCueColor>.
++    ///
++    /// A cue colour comes from the user's colour palette and bears no relation
++    /// to the skin's, which a monochrome skin has no second hue to absorb it
++    /// into. Such a skin opts out and keeps the <Color> it declared, so a
++    /// hotcue marker looks like every other marker.
++    void setCueColor(QColor color, int dimBrightThreshold) {
++        if (!m_useCueColor) {
++            return;
++        }
++        setBaseColor(color, dimBrightThreshold);
++    }
++
+     QColor fillColor() const {
+         return m_fillColor;
+     }
+@@ -304,6 +318,9 @@ class WaveformMark {
+     // Whether this marker is used in the show beats/time until next marker display.
+     bool m_showUntilNext;
+ 
++    // Whether a hotcue's own colour replaces the one the skin declared.
++    bool m_useCueColor{true};
++
+     QColor m_fillColor;
+     QColor m_borderColor;
+     QColor m_labelColor;
+diff --git a/src/waveform/renderers/waveformrendermarkbase.cpp b/src/waveform/renderers/waveformrendermarkbase.cpp
+index 83dae539..073c2f81 100644
+--- a/src/waveform/renderers/waveformrendermarkbase.cpp
++++ b/src/waveform/renderers/waveformrendermarkbase.cpp
+@@ -72,7 +72,7 @@ void WaveformRenderMarkBase::updateMarksFromCues() {
+         QString newLabel = pCue->getLabel();
+         QColor newColor = mixxx::RgbColor::toQColor(pCue->getColor());
+         pMark->setText(newLabel);
+-        pMark->setBaseColor(newColor, dimBrightThreshold);
++        pMark->setCueColor(newColor, dimBrightThreshold);
+         if (pMark->isJump()) {
+             pMark->setNeedsImageUpdate();
+         }
+diff --git a/src/widget/whotcuebutton.cpp b/src/widget/whotcuebutton.cpp
+index 5741cb41..f4a8947e 100644
+--- a/src/widget/whotcuebutton.cpp
++++ b/src/widget/whotcuebutton.cpp
+@@ -31,6 +31,7 @@ WHotcueButton::WHotcueButton(QWidget* pParent, const QString& group)
+           m_group(group),
+           m_hotcue(Cue::kNoHotCue),
+           m_hoverCueColor(false),
++          m_useCueColor(true),
+           m_pCoColor(nullptr),
+           m_cueColorDimThreshold(kDefaultDimBrightThreshold),
+           m_bCueColorDimmed(false),
+@@ -63,6 +64,8 @@ void WHotcueButton::setup(const QDomNode& node, const SkinContext& context) {
+     }
+ 
+     m_hoverCueColor = context.selectBool(node, QStringLiteral("Hover"), false);
++    m_useCueColor =
++            context.selectBool(node, QStringLiteral("UseCueColor"), true);
+ 
+     // For dnd/swapping hotcues we use the rendered widget pixmap as dnd cursor.
+     // Unfortnately the margin that constraints the bg color is not considered,
+@@ -304,6 +307,11 @@ ConfigKey WHotcueButton::createConfigKey(const QString& name) {
+ }
+ 
+ void WHotcueButton::slotColorChanged(double color) {
++    if (!m_useCueColor) {
++        // The skin paints this button itself, so the cue's colour never
++        // reaches the widget and nothing here has to be recomputed.
++        return;
++    }
+     VERIFY_OR_DEBUG_ASSERT(color >= 0 && color <= 0xFFFFFF) {
+         return;
+     }
+@@ -374,7 +382,7 @@ void WHotcueButton::slotTypeChanged(double type) {
+ }
+ 
+ void WHotcueButton::restyleAndRepaint() {
+-    if (readDisplayValue()) {
++    if (m_useCueColor && readDisplayValue()) {
+         // Adjust properties for Qss file
+         m_bCueColorIsLight = !m_bCueColorDimmed;
+         m_bCueColorIsDark = m_bCueColorDimmed;
+diff --git a/src/widget/whotcuebutton.h b/src/widget/whotcuebutton.h
+index f2f660b4..cac1a46a 100644
+--- a/src/widget/whotcuebutton.h
++++ b/src/widget/whotcuebutton.h
+@@ -52,6 +52,11 @@ class WHotcueButton : public WPushButton {
+     const QString m_group;
+     int m_hotcue;
+     bool m_hoverCueColor;
++    // Whether the cue's own colour is painted as this button's background.
++    // A monochrome skin turns it off and styles the button from its qss like
++    // any other latched button: a cue colour comes from the user's palette
++    // and has no counterpart in a single-hue scheme.
++    bool m_useCueColor;
+     parented_ptr<ControlProxy> m_pCoColor;
+     parented_ptr<ControlProxy> m_pCoType;
+     parented_ptr<ControlProxy> m_pCoPosition;
+diff --git a/src/widget/woverview.cpp b/src/widget/woverview.cpp
+index 89ef58b4..54eda973 100644
+--- a/src/widget/woverview.cpp
++++ b/src/widget/woverview.cpp
+@@ -501,7 +501,7 @@ void WOverview::updateCues(const QList<CuePointer> &loadedCues) {
+             && pMark->getSamplePosition() != Cue::kNoPosition) {
+             QColor newColor = mixxx::RgbColor::toQColor(currentCue->getColor());
+             if (newColor != pMark->fillColor() || newColor != pMark->m_textColor) {
+-                pMark->setBaseColor(newColor, m_dimBrightThreshold);
++                pMark->setCueColor(newColor, m_dimBrightThreshold);
+             }
+ 
+             int hotcueNumber = currentCue->getHotCue();
+-- 
+2.53.0.windows.3
+

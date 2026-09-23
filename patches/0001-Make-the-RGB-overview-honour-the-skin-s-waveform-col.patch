@@ -1,0 +1,72 @@
+From 803bdd64a54251ce1c9dffaf1312c0c8ca2fa2d0 Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Thu, 3 Sep 2026 12:11:16 -0500
+Subject: [PATCH 01/11] Make the RGB overview honour the skin's waveform
+ colours
+
+drawWaveformPartRGB computes red/green/blue from the configured low/mid/high
+colours, then discards them and normalises low/mid/high instead:
+
+    color.setRgbF(low / max, mid / max, high / max);
+
+So the hue is hardwired to bass=red, mid=green, treble=blue for every skin,
+and the configured colours only affect the normalisation factor. Normalise the
+composed channels, which is what the main waveform renderer
+(allshader/waveformrendererrgb.cpp) already does.
+
+No skin currently sets SignalRGBLowColor/MidColor/HighColor -- Deere, Tango,
+LateNight and Shade all leave those elements empty, so the renderer falls back
+to Qt::red/green/blue and they look exactly as before. Only a skin that sets
+them sees a change.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ .../renderers/waveformoverviewrenderer.cpp     | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/src/waveform/renderers/waveformoverviewrenderer.cpp b/src/waveform/renderers/waveformoverviewrenderer.cpp
+index cbc3f440..ba5d5dcb 100644
+--- a/src/waveform/renderers/waveformoverviewrenderer.cpp
++++ b/src/waveform/renderers/waveformoverviewrenderer.cpp
+@@ -126,9 +126,9 @@ void drawWaveformPartRGB(
+             max = math_max3(red, green, blue);
+             // Draw
+             if (max > 0.0) {
+-                color.setRgbF(static_cast<float>(low / max),
+-                        static_cast<float>(mid / max),
+-                        static_cast<float>(high / max));
++                color.setRgbF(static_cast<float>(red / max),
++                        static_cast<float>(green / max),
++                        static_cast<float>(blue / max));
+                 pPainter->setPen(color);
+                 pPainter->drawLine(x, static_cast<int>(all), x, 0);
+             }
+@@ -148,9 +148,9 @@ void drawWaveformPartRGB(
+             max = math_max3(red, green, blue);
+             // Draw
+             if (max > 0.0) {
+-                color.setRgbF(static_cast<float>(low / max),
+-                        static_cast<float>(mid / max),
+-                        static_cast<float>(high / max));
++                color.setRgbF(static_cast<float>(red / max),
++                        static_cast<float>(green / max),
++                        static_cast<float>(blue / max));
+                 pPainter->setPen(color);
+                 pPainter->drawLine(x, static_cast<int>(-all), x, 0);
+             }
+@@ -168,9 +168,9 @@ void drawWaveformPartRGB(
+             max = math_max3(red, green, blue);
+ 
+             if (max > 0.0) {
+-                color.setRgbF(static_cast<float>(low / max),
+-                        static_cast<float>(mid / max),
+-                        static_cast<float>(high / max));
++                color.setRgbF(static_cast<float>(red / max),
++                        static_cast<float>(green / max),
++                        static_cast<float>(blue / max));
+                 pPainter->setPen(color);
+                 pPainter->drawLine(x, 0, x, static_cast<int>(all));
+             }
+-- 
+2.53.0.windows.3
+

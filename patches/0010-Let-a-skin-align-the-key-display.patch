@@ -1,0 +1,48 @@
+From f37c0241c0cab32230baf24d57f555cc4b4c25f2 Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Mon, 21 Sep 2026 13:14:15 -0500
+Subject: [PATCH 10/11] Let a skin align the key display
+
+WKey paints its own text whenever key colours are on - it has a two-tone
+colour bar to draw beside it - and that paint path hard-coded
+Qt::AlignCenter, so both <Alignment> and a stylesheet's
+qproperty-alignment were silently dropped. Shade's skin carries a comment
+about the stylesheet half of it: "CSS alignments not respected see bug
+#5459, lets call <Alignment>" - and <Alignment> does not work either.
+
+Paint with alignment() instead, and set Qt::AlignCenter in the
+constructor so that a skin asking for nothing is unchanged. Every skin in
+res/skins either sets centre explicitly, in XML or in QSS, or takes that
+default, so none of them moves.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ src/widget/wkey.cpp | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/src/widget/wkey.cpp b/src/widget/wkey.cpp
+index b335f6b1..70ab629a 100644
+--- a/src/widget/wkey.cpp
++++ b/src/widget/wkey.cpp
+@@ -21,6 +21,10 @@ WKey::WKey(const QString& group, UserSettingsPointer pConfig, QWidget* pParent)
+                   this,
+                   ControlFlag::AllowMissingOrInvalid),
+           m_colorPaletteSettings(pConfig) {
++    // What the key-colour paint path used to hard-code. As the default it is
++    // the same picture for a skin that asks for nothing, and a skin that does
++    // ask - in <Alignment> or in a stylesheet - now gets what it asked for.
++    setAlignment(Qt::AlignCenter);
+     setValue();
+     m_keyNotation.connectValueChanged(this, &WKey::keyNotationChanged);
+     m_engineKeyDistance.connectValueChanged(this, &WKey::setCents);
+@@ -130,6 +134,6 @@ void WKey::paintEvent(QPaintEvent* event) {
+             contRect.top(),
+             contRect.width() - rectWidth,
+             contRect.height(),
+-            Qt::AlignCenter,
++            static_cast<int>(alignment()),
+             elidedText);
+ }
+-- 
+2.53.0.windows.3
+

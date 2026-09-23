@@ -1,0 +1,104 @@
+From 8a60d9ee6fa0f1019ba8a69b2b1687704400c4ff Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Tue, 8 Sep 2026 13:03:51 -0500
+Subject: [PATCH 05/11] Terminal skin: add green, amber and white phosphor
+ schemes
+
+Three monochrome alternatives to the btop default, each one hue at nine
+brightnesses: P1 green, P3 amber and a barely-blue P4 white. They are
+emitted by palettes/make_mono.py rather than written by hand, because the
+three are one design at three wavelengths and hand-picked hex would drift
+apart. Btop stays first in skin.xml, so it stays the default.
+
+With no second hue to spend, everything latched shares the one lit
+phosphor and the glyph says which control it is -- the same reasoning as
+the mode selectors. A colour per control would only be a second
+brightness, and dim behind black text is the one thing that does not
+survive. Brightness is kept for where it reads as magnitude instead: the
+VU rungs, the three waveform bands, and deck 3/4 against deck 1/2.
+
+The magenta/yellow/cyan/green keys in those palettes are aliases onto
+rungs of the one ramp, not hues. The stylesheet donor map and the
+intro/outro marker reach for them by name, so a palette has to define
+them whatever colour it actually is.
+
+Adding schemes turned up a bug in the library icon override. Those icons
+live at <skin>/library/, one set for the whole skin, and the generator
+cleared and rewrote that directory per palette -- so a full run left only
+the last scheme's icons, and every scheme drew white-grey ones. They now
+sit in library/<scheme>/, keyed by the name the settings hold rather than
+by the asset directory, since LibraryFeature runs before any skin is
+parsed and cannot map one onto the other without reading skin.xml. The
+copy directly under library/ stays as the fallback for a settings file
+that names no scheme yet.
+
+Checked all three in the running app, and the sidebar icons against the
+green and amber schemes.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ src/library/libraryfeature.cpp | 28 +++++++++++++++++++++++-----
+ 1 file changed, 23 insertions(+), 5 deletions(-)
+
+diff --git a/src/library/libraryfeature.cpp b/src/library/libraryfeature.cpp
+index 87346120..b4488893 100644
+--- a/src/library/libraryfeature.cpp
++++ b/src/library/libraryfeature.cpp
+@@ -20,6 +20,8 @@ const mixxx::Logger kLogger("LibraryFeature");
+ const QString kIconPath = QStringLiteral(":/images/library/ic_library_%1.svg");
+ const QString kSkinIconPath =
+         QStringLiteral("%1/skins/%2/library/ic_library_%3.svg");
++const QString kSchemeIconPath =
++        QStringLiteral("%1/skins/%2/library/%3/ic_library_%4.svg");
+ 
+ /// Path to a skin-provided replacement for a sidebar icon, or an empty string.
+ ///
+@@ -29,15 +31,23 @@ const QString kSkinIconPath =
+ /// `<skin>/library/ic_library_<name>.svg` to override one.
+ ///
+ /// This is purely additive: a skin that provides nothing keeps the built-in
+-/// icon, so existing skins are unaffected. Icons are resolved per skin rather
+-/// than per colour scheme, because features are constructed before any skin is
+-/// parsed and a scheme's asset directory is a skin-internal detail.
++/// icon, so existing skins are unaffected.
++///
++/// A skin whose colour schemes differ in more than accent -- a monochrome one,
++/// say -- needs an icon per scheme, so `library/<scheme>/` is preferred over
++/// `library/` when it exists. The scheme is keyed by the name the settings
++/// hold, not by the asset directory it happens to use: features are
++/// constructed before any skin is parsed, so there is nothing here that could
++/// map one onto the other without reading skin.xml. `library/` remains the
++/// fallback, for the first run of a settings file that names no scheme yet.
+ QString skinIconPath(const UserSettingsPointer& pConfig, const QString& iconName) {
+     const QString skinName =
+             pConfig->getValueString(ConfigKey("[Config]", "ResizableSkin"));
+     if (skinName.isEmpty()) {
+         return QString();
+     }
++    const QString scheme =
++            pConfig->getValueString(ConfigKey("[Config]", "Scheme"));
+     // Same search order as SkinLoader: a user skin shadows a system one.
+     const QStringList bases = {
+             pConfig->getSettingsPath(), pConfig->getResourcePath()};
+@@ -45,8 +55,16 @@ QString skinIconPath(const UserSettingsPointer& pConfig, const QString& iconName
+         if (base.isEmpty()) {
+             continue;
+         }
+-        const QString candidate = kSkinIconPath.arg(
+-                QDir::cleanPath(base), skinName, iconName);
++        const QString clean = QDir::cleanPath(base);
++        if (!scheme.isEmpty()) {
++            const QString candidate =
++                    kSchemeIconPath.arg(clean, skinName, scheme, iconName);
++            if (QFile::exists(candidate)) {
++                return candidate;
++            }
++        }
++        const QString candidate =
++                kSkinIconPath.arg(clean, skinName, iconName);
+         if (QFile::exists(candidate)) {
+             return candidate;
+         }
+-- 
+2.53.0.windows.3
+

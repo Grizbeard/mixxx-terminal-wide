@@ -1,0 +1,97 @@
+From 5e505a3ab064047093d2d707ccec7142eb90f74b Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Thu, 3 Sep 2026 13:50:31 -0500
+Subject: [PATCH 02/11] Let skins override the library sidebar icons
+
+The sidebar feature icons are compiled into the binary as Qt resources, so a
+skin whose palette does not contain their colours has no way to bring the
+sidebar into line with the rest of itself. LibraryFeature now looks for
+<skin>/library/ic_library_<name>.svg before falling back to the built-in
+resource, using the same user-then-system search order as SkinLoader.
+
+This is purely additive: a skin that ships no override keeps the built-in
+icon, so Deere, Tango, LateNight and Shade are unaffected. Icons resolve per
+skin rather than per colour scheme, because features are constructed before
+any skin is parsed and a scheme's asset directory is a skin-internal detail.
+
+Terminal ships flattened copies of the 14 icons that exist, painted in the
+palette's dim foreground so they sit with the labels rather than competing.
+
+Known gap: Qt tints a *selected* item's icon toward QPalette::Highlight in
+QCommonStyle::generatedIconPixmap, so the icon on the highlighted sidebar row
+still reads warm. Setting selection-background-color from the stylesheet does
+not change it, so the source of that highlight colour is still to be found.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ src/library/libraryfeature.cpp | 41 +++++++++++++++++++++++++++++++++-
+ 1 file changed, 40 insertions(+), 1 deletion(-)
+
+diff --git a/src/library/libraryfeature.cpp b/src/library/libraryfeature.cpp
+index 7c88fbf9..60095edf 100644
+--- a/src/library/libraryfeature.cpp
++++ b/src/library/libraryfeature.cpp
+@@ -1,5 +1,7 @@
+ #include "library/libraryfeature.h"
+ 
++#include <QDir>
++#include <QFile>
+ #include <QStandardPaths>
+ 
+ #include "library/library.h"
+@@ -16,6 +18,41 @@ namespace {
+ 
+ const mixxx::Logger kLogger("LibraryFeature");
+ const QString kIconPath = QStringLiteral(":/images/library/ic_library_%1.svg");
++const QString kSkinIconPath =
++        QStringLiteral("%1/skins/%2/library/ic_library_%3.svg");
++
++/// Path to a skin-provided replacement for a sidebar icon, or an empty string.
++///
++/// The built-in icons are compiled into the binary, so a skin whose palette
++/// does not contain their colours has no way to bring the sidebar into line
++/// with the rest of itself. A skin may ship
++/// `<skin>/library/ic_library_<name>.svg` to override one.
++///
++/// This is purely additive: a skin that provides nothing keeps the built-in
++/// icon, so existing skins are unaffected. Icons are resolved per skin rather
++/// than per colour scheme, because features are constructed before any skin is
++/// parsed and a scheme's asset directory is a skin-internal detail.
++QString skinIconPath(const UserSettingsPointer& pConfig, const QString& iconName) {
++    const QString skinName =
++            pConfig->getValueString(ConfigKey("[Config]", "ResizableSkin"));
++    if (skinName.isEmpty()) {
++        return QString();
++    }
++    // Same search order as SkinLoader: a user skin shadows a system one.
++    const QStringList bases = {
++            pConfig->getSettingsPath(), pConfig->getResourcePath()};
++    for (const QString& base : bases) {
++        if (base.isEmpty()) {
++            continue;
++        }
++        const QString candidate = kSkinIconPath.arg(
++                QDir::cleanPath(base), skinName, iconName);
++        if (QFile::exists(candidate)) {
++            return candidate;
++        }
++    }
++    return QString();
++}
+ 
+ } // anonymous namespace
+ 
+@@ -28,7 +65,9 @@ LibraryFeature::LibraryFeature(
+           m_pConfig(pConfig),
+           m_iconName(iconName) {
+     if (!m_iconName.isEmpty()) {
+-        m_icon = QIcon(kIconPath.arg(m_iconName));
++        const QString overridePath = skinIconPath(m_pConfig, m_iconName);
++        m_icon = QIcon(overridePath.isEmpty() ? kIconPath.arg(m_iconName)
++                                              : overridePath);
+     }
+ }
+ 
+-- 
+2.53.0.windows.3
+

@@ -74,7 +74,7 @@ to say yet, so they are defaults rather than overrides:
 | `[EffectRack1_EffectUnit1] group_[Channel1]_enable` | 1 | unit 1 on deck 1 |
 | `[EffectRack1_EffectUnit2] group_[Channel2]_enable` | 1 | unit 2 on deck 2 |
 
-[`scripts/preview-terminal-wide.ps1`](../../../scripts/preview-terminal-wide.ps1)
+[`scripts/preview-terminal-wide.ps1`](../scripts/preview-terminal-wide.ps1)
 does the seeding for the preview; appliance provisioning should ship the same
 values in its `mixxx.cfg`.
 
@@ -89,7 +89,7 @@ closes a running instance with `WM_CLOSE` and waits for it rather than killing
 it, for that reason.
 
 **There is no mixer and there are no level meters.** The DJM-T1 does gain, EQ,
-faders, crossfader and headphone cueing in analogue ([ADR-003](../../../docs/decisions.md));
+faders, crossfader and headphone cueing in analogue (the appliance's ADR-003);
 putting them on screen too would only split the operator's attention. What is on
 screen is what the hardware cannot report: which track is loaded, how much is
 left, what tempo the platter is really running at, and whether Mixxx is locked
@@ -126,7 +126,7 @@ panel did not have to spare, and their absence is what lets all of it fit
 without the row above clipping into it.
 
 The key reads from the left, under the time, which needs the second-smallest
-patch on the `terminal-skin` branch: with key colours on, upstream `WKey` paints
+patch in [`patches/`](../patches/): with key colours on, upstream `WKey` paints
 its own text with a hard-coded `Qt::AlignCenter` and ignores both `<Alignment>`
 and the stylesheet. Without that patch the key sits centred in its half of the
 row - wrong but harmless.
@@ -218,7 +218,7 @@ presets Mixxx ships (`res/effects/chains`) are in both lists from the first
 launch.
 
 `Delete Preset` is the one item here that upstream's menu does not have - it
-needs the core patch described in `docs/skins.md`. Deleting is permanent: the
+needs the core patch in [`patches/`](../patches/). Deleting is permanent: the
 shipped presets are copied into your settings directory on first run and are
 ordinary files after that, so deleting one of those deletes it for good too
 (Preferences -> Effects -> Import brings it back from `res/effects/chains`).
@@ -236,7 +236,7 @@ its menu indicator and lets the arrow be the glyph, which is why this feature
 still ships no image assets. And `Save As New Preset...` and `Rename Preset`
 open a name-entry dialog: recall, `Update Preset` and the snapshots all work
 with a finger alone, but naming a new preset needs a keyboard, or the on-screen
-one from the `search-osk` patch in `docs/skins.md`.
+one from the `search-osk` patch carried by the appliance.
 
 **options** — everything that is a setting rather than a performance control:
 
@@ -365,7 +365,7 @@ Four, all generated from one palette each:
 
 **The skin is generated, not hand-edited.** `style_<scheme>.qss`, the
 `<Schemes>` block in `skin.xml` and `library/<scheme>/` all come from
-[`tools/terminal_wide/generate.py`](../../../tools/terminal_wide/). Edit a
+[`tools/generate.py`](../tools/). Edit a
 palette or a template and re-run it; edits made directly to those files are
 overwritten. `style.qss` and the widget XML *are* hand-written — they carry
 geometry and type and no colour at all.
@@ -373,7 +373,7 @@ geometry and type and no colour at all.
 ## Requires
 
 The skin loads on stock Mixxx 2.5+, but four things degrade without the core
-changes on the `terminal-skin` branch:
+changes in [`patches/`](../patches/):
 
 - **vertical waveforms** — the *two columns* lane arrangement needs the
   rendergraph rotation. Without it the lanes still lay out side by side, but
@@ -400,14 +400,14 @@ choice on every launch.
 Copy or symlink this directory into Mixxx's skins path:
 
 ```bash
-ln -s "$PWD/mixxx/skins/Terminal-wide" ~/.mixxx/skins/Terminal-wide
+ln -s "$PWD/Terminal-wide" ~/.mixxx/skins/Terminal-wide
 ```
 
 Then pick **Terminal-wide** in Preferences → Interface, and a scheme beside it.
 
 ## Verified / not verified
 
-**Verified** at 1920×480 against Mixxx `main` + the `terminal-skin` branch, with
+**Verified** at 1920×480 against Mixxx `main` + the patches in `patches/`, with
 two tracks loaded, using `_localbuild/skinshot.ps1` in the Mixxx tree: the skin
 loads with no skin-parse warnings in any of the four schemes; the browse page,
 the sidebar icon overrides and the monochrome waveform colours all follow the
@@ -426,13 +426,11 @@ exercised states 1–3. Same caveat Pioneered-DVS carries.
 This skin's design derives from **Terminal**, which derives from **LateNight**
 by jus, Owen Williams and ronso0, licensed
 [CC-BY-SA 3.0 Unported](http://creativecommons.org/licenses/by-sa/3.0/).
-Terminal-wide keeps that licence — *not* the MIT licence that covers the rest of
-this repository, and not the GPL-3.0 that covers the sibling `Pioneered-DVS`
-directory.
+That licence covers this repository; see [LICENSE](../LICENSE).
 
 The layout is original. It takes its touch sizing and its tabbed page model as
 reference from [Pioneered](https://github.com/timewasternl/Pioneered) by Sven
-Boekelder (GPL-3.0) — see [docs/skins.md](../../../docs/skins.md) for why that
+Boekelder (GPL-3.0) — see the survey in the appliance repo for why that
 skin was the starting point — but carries none of its markup, so no GPL-3.0
 obligation attaches here.
 

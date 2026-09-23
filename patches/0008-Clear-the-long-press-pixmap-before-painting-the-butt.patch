@@ -1,0 +1,45 @@
+From 9fe231b2a5b09d1a6c565ef6383ebc120c49970d Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Fri, 18 Sep 2026 15:57:10 -0500
+Subject: [PATCH 08/11] Clear the long-press pixmap before painting the button
+ into it
+
+The long-press latching animation captures the button's off state into a
+QPixmap and wipes it away across the button. A fresh QPixmap holds
+undefined bytes, and what paintOnDevice draws onto it does not
+necessarily cover all of them: a stylesheet background is drawn
+antialiased, so along the button's edge it blends with whatever was
+already there. That is uninitialised memory, and the wipe drags a fringe
+of random colour across the button for the length of the animation.
+
+Fill it transparent first.
+
+Seen on a skin whose buttons are flat stylesheet fills with no border
+image, where the blend at the edge is the only thing that touches those
+bytes.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ src/widget/wpushbutton.cpp | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/src/widget/wpushbutton.cpp b/src/widget/wpushbutton.cpp
+index 30c8c387..11f48b9a 100644
+--- a/src/widget/wpushbutton.cpp
++++ b/src/widget/wpushbutton.cpp
+@@ -586,6 +586,12 @@ void WPushButton::LongPressLatching::start() {
+             static_cast<int>(
+                     m_pButton->height() * m_pButton->devicePixelRatio()));
+     m_preLongPressPixmap.setDevicePixelRatio(m_pButton->devicePixelRatio());
++    // A fresh QPixmap holds undefined bytes, and what is painted onto it next
++    // does not necessarily cover all of them: a stylesheet background is drawn
++    // antialiased, so along the button's edge it blends with whatever was
++    // already there. Left unfilled that is uninitialised memory, and the
++    // latching animation drags a fringe of random colour across the button.
++    m_preLongPressPixmap.fill(Qt::transparent);
+     m_pButton->paintOnDevice(&m_preLongPressPixmap, 0);
+     // ... and start the long press latching animation
+     m_sinceStart.start();
+-- 
+2.53.0.windows.3
+

@@ -24,7 +24,7 @@
     True vertical rendering needs the rotation this repo's Mixxx branch adds.
     Upstream parses <Orientation> and hands it to the renderer, but the
     allshader backend never turns the scene, so the signal comes out squeezed
-    into `height` pixels of `width`. See ../../../docs/skins.md.
+    into `height` pixels of `width`. See ../patches/.
 -->
 <Template>
   <WidgetGroup>

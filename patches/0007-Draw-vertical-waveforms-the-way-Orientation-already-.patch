@@ -1,0 +1,390 @@
+From b2d88fa012195f4b01f380d5172a3a9738881ac9 Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Fri, 18 Sep 2026 15:56:49 -0500
+Subject: [PATCH 07/11] Draw vertical waveforms the way <Orientation> already
+ claims
+
+<Orientation>vertical</Orientation> on a <Visual> has parsed and reached
+WaveformWidgetRenderer for a long time, but the allshader backend never
+acted on it: rendergraph::Engine::resize carried a commented-out TODO
+where the quarter turn belongs, and matrixForWidgetGeometry(), the helper
+written for exactly this, is referenced by nothing but its own header.
+What you got was a renderer that thought the time axis was the widget's
+height while the painter still drew along its width, so the signal was
+squeezed into `height` pixels of `width` and sat off its axis.
+
+Every renderer already builds its geometry in (length, breadth) space, so
+turning the scene is all the signal, the beat grid, the pre-roll and the
+mark lines need. Engine::resize takes a quarterTurn flag, applies the
+rotation the TODO described, and hands nodes the turned extent.
+
+Two things the turn alone does not cover:
+
+The end-of-track flash sized itself from the widget's width and height
+rather than length and breadth, so its gradient ran across the track
+instead of along it.
+
+Mark labels need the opposite treatment. The image has to stay unturned
+or the mark's *line* stops spanning the breadth -- turning it undoes
+exactly what the scene turn achieved -- so only the chip inside it is
+built on its side, and it comes out upright once the scene turns.
+
+Not covered: the "time until next mark" digits overlay, which is off by
+default and still renders on its side, and the legacy non-allshader
+renderers, which are left as they were.
+
+Verified on a 1920x480 skin with both the RGB and Filtered waveform
+types: time runs down the lane, the beat grid is horizontal, the playhead
+is a horizontal line, and cue and hotcue chips read upright.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ src/rendergraph/opengl/engine.cpp             | 24 ++++--
+ src/rendergraph/opengl/rendergraph/engine.h   |  5 +-
+ .../allshader/waveformrendererendoftrack.cpp  |  4 +-
+ .../allshader/waveformrendermark.cpp          | 18 ++++-
+ src/waveform/renderers/waveformmark.cpp       | 80 +++++++++++++++----
+ src/waveform/renderers/waveformmark.h         | 17 +++-
+ .../widgets/allshader/waveformwidget.cpp      |  2 +-
+ 7 files changed, 116 insertions(+), 34 deletions(-)
+
+diff --git a/src/rendergraph/opengl/engine.cpp b/src/rendergraph/opengl/engine.cpp
+index a43fc9da..61023f2e 100644
+--- a/src/rendergraph/opengl/engine.cpp
++++ b/src/rendergraph/opengl/engine.cpp
+@@ -76,17 +76,27 @@ void Engine::preprocess() {
+     }
+ }
+ 
+-void Engine::resize(int w, int h) {
++void Engine::resize(int w, int h, bool quarterTurn) {
+     m_matrix.setToIdentity();
+     m_matrix.ortho(QRectF(0.0f, 0.0f, w, h));
+-    // TODO
+-    // if (waveformRenderer->getOrientation() == Qt::Vertical) {
+-    //    matrix.rotate(90.f, 0.0f, 0.0f, 1.0f);
+-    //    matrix.translate(0.f, -waveformRenderer->getWidth() * ratio, 0.f);
+-    //}
++    if (quarterTurn) {
++        // Nodes build their geometry in (length, breadth) space -- along the
++        // axis their content runs and across it -- so a client that wants that
++        // content turned a quarter turn only has to turn the scene, and every
++        // node goes on emitting vertices along +x as before.
++        //
++        // The pair maps a point (u, v) to (w - v, u): the length axis becomes
++        // the widget's y, the breadth axis its x. Breadth comes out mirrored,
++        // which is invisible on content symmetric across it and is the
++        // direction the alignment flags on the rest are resolved against.
++        m_matrix.rotate(90.f, 0.0f, 0.0f, 1.0f);
++        m_matrix.translate(0.f, -w, 0.f);
++    }
+ 
+     if (m_pRootNode) {
+-        resize(m_pRootNode.get(), w, h);
++        // A node that cares about its drawing area wants it in the space its
++        // geometry is in, so hand on the turned extent rather than the widget's.
++        resize(m_pRootNode.get(), quarterTurn ? h : w, quarterTurn ? w : h);
+     }
+ }
+ 
+diff --git a/src/rendergraph/opengl/rendergraph/engine.h b/src/rendergraph/opengl/rendergraph/engine.h
+index 4d073dec..2366a037 100644
+--- a/src/rendergraph/opengl/rendergraph/engine.h
++++ b/src/rendergraph/opengl/rendergraph/engine.h
+@@ -15,7 +15,10 @@ class rendergraph::Engine {
+     ~Engine();
+ 
+     void render();
+-    void resize(int w, int h);
++    /// Set the projection for a widget of this size. With quarterTurn the
++    /// scene is turned so that a node's +x (the axis its content runs
++    /// along) points down the widget instead of across it.
++    void resize(int w, int h, bool quarterTurn = false);
+     void preprocess();
+     void add(BaseNode* pNode);
+     void remove(BaseNode* pNode);
+diff --git a/src/waveform/renderers/allshader/waveformrendererendoftrack.cpp b/src/waveform/renderers/allshader/waveformrendererendoftrack.cpp
+index 17bc4aba..1373be3a 100644
+--- a/src/waveform/renderers/allshader/waveformrendererendoftrack.cpp
++++ b/src/waveform/renderers/allshader/waveformrendererendoftrack.cpp
+@@ -93,7 +93,9 @@ bool WaveformRendererEndOfTrack::preprocessInner() {
+ 
+     const double alpha = std::clamp(criticalIntensity * blinkIntensity, 0.0, 1.0);
+ 
+-    QSizeF size(m_waveformRenderer->getWidth(), m_waveformRenderer->getHeight());
++    // Length and breadth, not width and height: the gradient runs along the
++    // track, and on a vertical waveform that is the widget's y axis.
++    QSizeF size(m_waveformRenderer->getLength(), m_waveformRenderer->getBreadth());
+     float r, g, b, a;
+     getRgbF(m_color, &r, &g, &b, &a);
+ 
+diff --git a/src/waveform/renderers/allshader/waveformrendermark.cpp b/src/waveform/renderers/allshader/waveformrendermark.cpp
+index 5b3f7d57..3dbe63c9 100644
+--- a/src/waveform/renderers/allshader/waveformrendermark.cpp
++++ b/src/waveform/renderers/allshader/waveformrendermark.cpp
+@@ -48,6 +48,12 @@ class WaveformMarkNode : public rendergraph::GeometryNode {
+         initForRectangles<TextureMaterial>(1);
+         updateTexture(pContext, image);
+     }
++    /// The image is uploaded as it comes. It is laid out along the track and
++    /// across the breadth, the same axes this node's geometry uses, so the
++    /// scene's own turn is what puts a vertical waveform's marks the right way
++    /// round -- including the mark line, which has to keep spanning the
++    /// breadth. Turning the image here instead would undo exactly that.
++    /// WaveformMark::generateImage is where a vertical mark's *chip* is turned.
+     void updateTexture(rendergraph::Context* pContext, const QImage& image) {
+         dynamic_cast<TextureMaterial&>(material())
+                 .setTexture(std::make_unique<Texture>(pContext, image));
+@@ -615,33 +621,37 @@ void allshader::WaveformRenderMark::drawTriangle(QPainter* painter,
+ }
+ 
+ void allshader::WaveformRenderMark::updateMarkImage(WaveformMarkPointer pMark) {
++    const Qt::Orientation orientation = m_waveformRenderer->getOrientation();
+     if (!pMark->m_pGraphics) {
+         pMark->m_pGraphics =
+                 std::make_unique<WaveformMarkNodeGraphics>(pMark.get(),
+                         false,
+                         m_waveformRenderer->getContext(),
+                         pMark->generateImage(
+-                                m_waveformRenderer->getDevicePixelRatio()));
++                                m_waveformRenderer->getDevicePixelRatio(),
++                                orientation));
+     } else {
+         auto* pGraphics = static_cast<WaveformMarkNodeGraphics*>(pMark->m_pGraphics.get());
+         pGraphics->updateTexture(m_waveformRenderer->getContext(),
+                 pMark->generateImage(
+-                        m_waveformRenderer->getDevicePixelRatio()));
++                        m_waveformRenderer->getDevicePixelRatio(), orientation));
+     }
+ }
+ void allshader::WaveformRenderMark::updateEndMarkImage(WaveformMarkPointer pMark) {
++    const Qt::Orientation orientation = m_waveformRenderer->getOrientation();
+     if (!pMark->m_pEndGraphics) {
+         pMark->m_pEndGraphics =
+                 std::make_unique<WaveformMarkNodeGraphics>(pMark.get(),
+                         true,
+                         m_waveformRenderer->getContext(),
+                         pMark->generateEndImage(
+-                                m_waveformRenderer->getDevicePixelRatio()));
++                                m_waveformRenderer->getDevicePixelRatio(),
++                                orientation));
+     } else {
+         auto* pGraphics = static_cast<WaveformMarkNodeGraphics*>(pMark->m_pEndGraphics.get());
+         pGraphics->updateTexture(m_waveformRenderer->getContext(),
+                 pMark->generateEndImage(
+-                        m_waveformRenderer->getDevicePixelRatio()));
++                        m_waveformRenderer->getDevicePixelRatio(), orientation));
+     }
+ }
+ 
+diff --git a/src/waveform/renderers/waveformmark.cpp b/src/waveform/renderers/waveformmark.cpp
+index 0291338e..ed7b320e 100644
+--- a/src/waveform/renderers/waveformmark.cpp
++++ b/src/waveform/renderers/waveformmark.cpp
+@@ -362,7 +362,8 @@ class MarkerGeometry {
+             bool useIcon,
+             Qt::Alignment align,
+             float breadth,
+-            int level) {
++            int level,
++            Qt::Orientation orientation) {
+         // If the label is 1 character long, and this character isn't a letter or a number,
+         // we can assume it's a special symbol
+         m_isSymbol = !useIcon && label.length() == 1 && !label[0].isLetterOrNumber();
+@@ -436,11 +437,21 @@ class MarkerGeometry {
+         // label rect width has to be even.
+         const qreal widthRounding{alignHCenter ? 2.f : 1.f};
+ 
+-        m_labelRect = QRectF{0.f,
+-                0.f,
++        const qreal chipAlongText =
+                 std::ceil((m_contentRect.width() + 2.f * margin) / widthRounding) *
+-                        widthRounding,
+-                std::ceil(capHeight + 2.f * margin)};
++                widthRounding;
++        const qreal chipAcrossText = std::ceil(capHeight + 2.f * margin);
++
++        // The image's x axis is the one the mark sits on -- time -- and its y
++        // axis is the breadth. On a vertical waveform the scene turns a
++        // quarter turn, so the chip has to be built on its side for it to come
++        // out upright: what reads along the text runs across the image, not
++        // along it. That also makes a vertical mark thin in time, which is the
++        // axis a tall narrow lane has least of.
++        m_sideways = orientation == Qt::Vertical;
++        m_labelRect = m_sideways
++                ? QRectF{0.f, 0.f, chipAcrossText, chipAlongText}
++                : QRectF{0.f, 0.f, chipAlongText, chipAcrossText};
+ 
+         m_imageSize = QSizeF{m_labelRect.width() + 1.f, breadth};
+ 
+@@ -479,8 +490,14 @@ class MarkerGeometry {
+         return m_imageSize;
+     }
+ 
++    /// Whether the chip is built turned a quarter turn against the scene's.
++    bool sideways() const {
++        return m_sideways;
++    }
++
+   private:
+     bool m_isSymbol; // is the label normal text or a single symbol (e.g. open circle arrow)
++    bool m_sideways{false};
+     QFont m_font;
+     QRectF m_contentRect;
+     QRectF m_labelRect;
+@@ -491,7 +508,8 @@ QImage WaveformMark::performImageGeneration(float devicePixelRatio,
+         const QString& pixmapPath,
+         const QString& text,
+         WaveformMarkLabel* labelMark,
+-        const QString& iconPath) {
++        const QString& iconPath,
++        Qt::Orientation orientation) {
+     if (m_breadth == 0.0f) {
+         return {};
+     }
+@@ -534,7 +552,8 @@ QImage WaveformMark::performImageGeneration(float devicePixelRatio,
+     const bool useIcon = iconPath != "";
+ 
+     // Determine drawing geometries
+-    const MarkerGeometry markerGeometry{text, useIcon, m_align, m_breadth, m_level};
++    const MarkerGeometry markerGeometry{
++            text, useIcon, m_align, m_breadth, m_level, orientation};
+ 
+     float linePos;
+     if (labelMark) {
+@@ -612,15 +631,35 @@ QImage WaveformMark::performImageGeneration(float devicePixelRatio,
+         painter.fillPath(path, fillColor());
+         painter.drawPath(path);
+ 
+-        // Center m_contentRect.width() and m_contentRect.height() inside labelRectMarl
+-        // and apply the offset x,y so the text ends up in the centered width,height.
+-        QPointF pos(markerGeometry.labelRect().x() +
+-                        (markerGeometry.labelRect().width() -
++        // The box the content is centred in. For a sideways chip that is the
++        // label rect stood back up: the content is laid out upright and the
++        // painter turns it, rather than every metric below having to know
++        // which way round it is.
++        QRectF contentBox = markerGeometry.labelRect();
++        if (markerGeometry.sideways()) {
++            contentBox.setSize(
++                    QSizeF(contentBox.height(), contentBox.width()));
++            contentBox.moveCenter(markerGeometry.labelRect().center());
++
++            // A quarter turn the other way from the one the scene applies, so
++            // the two cancel and the label reads left to right on screen.
++            painter.setWorldMatrixEnabled(true);
++            const QPointF pivot = markerGeometry.labelRect().center();
++            painter.translate(pivot);
++            painter.rotate(-90.0);
++            painter.translate(-pivot);
++        }
++
++        // Center m_contentRect.width() and m_contentRect.height() inside the
++        // content box and apply the offset x,y so the text ends up in the
++        // centered width,height.
++        QPointF pos(contentBox.x() +
++                        (contentBox.width() -
+                                 markerGeometry.contentRect().width()) /
+                                 2.f -
+                         markerGeometry.contentRect().x(),
+-                markerGeometry.labelRect().y() +
+-                        (markerGeometry.labelRect().height() -
++                contentBox.y() +
++                        (contentBox.height() -
+                                 markerGeometry.contentRect().height()) /
+                                 2.f -
+                         markerGeometry.contentRect().y());
+@@ -636,6 +675,11 @@ QImage WaveformMark::performImageGeneration(float devicePixelRatio,
+ 
+             painter.drawText(pos, text);
+         }
++
++        if (markerGeometry.sideways()) {
++            painter.resetTransform();
++            painter.setWorldMatrixEnabled(false);
++        }
+     }
+ 
+     painter.end();
+@@ -684,7 +728,7 @@ std::optional<WaveformMark::WaveformMarkConstructionError> WaveformMark::validat
+     return {};
+ }
+ 
+-QImage WaveformMark::generateImage(float devicePixelRatio) {
++QImage WaveformMark::generateImage(float devicePixelRatio, Qt::Orientation orientation) {
+     DEBUG_ASSERT(needsImageUpdate());
+ 
+     QString label = m_text;
+@@ -697,10 +741,11 @@ QImage WaveformMark::generateImage(float devicePixelRatio) {
+         label.prepend(QString::number(getHotCue() + 1));
+     }
+ 
+-    return performImageGeneration(devicePixelRatio, m_pixmapPath, label, &m_label, m_iconPath);
++    return performImageGeneration(
++            devicePixelRatio, m_pixmapPath, label, &m_label, m_iconPath, orientation);
+ }
+ 
+-QImage WaveformMark::generateEndImage(float devicePixelRatio) {
++QImage WaveformMark::generateEndImage(float devicePixelRatio, Qt::Orientation orientation) {
+     assert(needsEndImageUpdate());
+ 
+     QString direction = QStringLiteral("forward");
+@@ -712,5 +757,6 @@ QImage WaveformMark::generateEndImage(float devicePixelRatio) {
+             m_endPixmapPath,
+             "",
+             nullptr,
+-            m_endIconPath.contains("%1") ? m_endIconPath.arg(direction) : m_endIconPath);
++            m_endIconPath.contains("%1") ? m_endIconPath.arg(direction) : m_endIconPath,
++            orientation);
+ }
+diff --git a/src/waveform/renderers/waveformmark.h b/src/waveform/renderers/waveformmark.h
+index 35d7f455..9e9c071a 100644
+--- a/src/waveform/renderers/waveformmark.h
++++ b/src/waveform/renderers/waveformmark.h
+@@ -249,8 +249,18 @@ class WaveformMark {
+     // Check if a point (in image coordinates) lies on drawn image.
+     bool contains(QPoint point, Qt::Orientation orientation) const;
+ 
+-    QImage generateImage(float devicePixelRatio);
+-    QImage generateEndImage(float devicePixelRatio);
++    /// Render the mark's label image.
++    ///
++    /// The image is always laid out the same way -- the mark's line runs down
++    /// it and its extent across the image is the breadth -- because the
++    /// renderer turns the whole scene for a vertical waveform and that keeps
++    /// the line spanning the breadth either way. What `orientation` changes is
++    /// only the chip: on a vertical waveform it is drawn turned a quarter turn
++    /// against the scene's, so the text comes out upright on screen.
++    QImage generateImage(float devicePixelRatio,
++            Qt::Orientation orientation = Qt::Horizontal);
++    QImage generateEndImage(float devicePixelRatio,
++            Qt::Orientation orientation = Qt::Horizontal);
+ 
+     QColor m_textColor;
+     QString m_text;
+@@ -301,7 +311,8 @@ class WaveformMark {
+             const QString& pixmapPath,
+             const QString& text,
+             WaveformMarkLabel* labelMark,
+-            const QString& iconPath);
++            const QString& iconPath,
++            Qt::Orientation orientation);
+ 
+     std::unique_ptr<ControlProxy> m_pPositionCO;
+     std::unique_ptr<ControlProxy> m_pEndPositionCO;
+diff --git a/src/waveform/widgets/allshader/waveformwidget.cpp b/src/waveform/widgets/allshader/waveformwidget.cpp
+index db97792a..c5e958ed 100644
+--- a/src/waveform/widgets/allshader/waveformwidget.cpp
++++ b/src/waveform/widgets/allshader/waveformwidget.cpp
+@@ -185,7 +185,7 @@ void WaveformWidget::resizeGL(int w, int h) {
+     // WaveformWidgetRenderer::getHeight to update their rendering stack, so we
+     // must resize the renderer first, before updating the rendergraph
+     WaveformWidgetRenderer::resizeRenderer(w, h, static_cast<float>(devicePixelRatio()));
+-    m_pEngine->resize(w, h);
++    m_pEngine->resize(w, h, getOrientation() == Qt::Vertical);
+ }
+ 
+ void WaveformWidget::paintEvent(QPaintEvent* event) {
+-- 
+2.53.0.windows.3
+

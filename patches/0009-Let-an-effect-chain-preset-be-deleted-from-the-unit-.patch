@@ -1,0 +1,128 @@
+From d87e7ea8fb5da4444373d2852b2f277d4370b21e Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Mon, 21 Sep 2026 12:04:10 -0500
+Subject: [PATCH 09/11] Let an effect chain preset be deleted from the unit it
+ is loaded in
+
+WEffectChainPresetButton's menu can create a preset, update one and
+rename one, but not remove one: deleting is only in Preferences ->
+Effects. On a touchscreen appliance with no keyboard that is not
+somewhere an operator goes mid-set, and the asymmetry reads as an
+omission rather than a decision.
+
+EffectChainPresetManager::deletePreset() already did the whole job - it
+asks for confirmation, refuses the read-only '---' preset, removes the
+file and drops the preset from both lists - so this is an action that
+calls it, last in the menu and only for a preset that is loaded and
+deletable, the same condition Update and Rename already use.
+
+The manager announced a rename to every chain so that a chain holding the
+old name could follow it, but said nothing about a deletion, which left
+a chain naming a preset that no longer existed: the selector pointed at
+nothing and presetIndex() went to -1. A matching effectChainPresetDeleted
+signal, and a slot that clears the name while leaving the loaded effects
+alone, puts the chain in the same state as one built by hand. That hole
+was reachable from Preferences before this; the menu item only makes it
+easy to reach.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ src/effects/effectchain.cpp                      | 16 ++++++++++++++++
+ src/effects/effectchain.h                        |  1 +
+ src/effects/presets/effectchainpresetmanager.cpp |  1 +
+ src/effects/presets/effectchainpresetmanager.h   |  1 +
+ src/widget/weffectchainpresetbutton.cpp          |  8 ++++++++
+ 5 files changed, 27 insertions(+)
+
+diff --git a/src/effects/effectchain.cpp b/src/effects/effectchain.cpp
+index 340b1748..347e287a 100644
+--- a/src/effects/effectchain.cpp
++++ b/src/effects/effectchain.cpp
+@@ -45,6 +45,10 @@ EffectChain::EffectChain(const QString& group,
+             &EffectChainPresetManager::effectChainPresetRenamed,
+             this,
+             &EffectChain::slotEffectChainPresetRenamed);
++    connect(m_pChainPresetManager.data(),
++            &EffectChainPresetManager::effectChainPresetDeleted,
++            this,
++            &EffectChain::slotEffectChainPresetDeleted);
+     connect(m_pChainPresetManager.data(),
+             &EffectChainPresetManager::effectChainPresetListUpdated,
+             this,
+@@ -414,6 +418,18 @@ void EffectChain::slotEffectChainPresetRenamed(const QString& oldName, const QSt
+     }
+ }
+ 
++void EffectChain::slotEffectChainPresetDeleted(const QString& chainPresetName) {
++    // The effects stay loaded -- deleting a preset is not meant to tear down
++    // whatever is playing through it -- but the chain stops naming a preset
++    // that no longer exists, which is the same state a chain built by hand is
++    // in. Leaving the name behind would leave the selector pointing at nothing
++    // and offering to update a preset that is gone.
++    if (m_presetName == chainPresetName) {
++        m_presetName = QString();
++        emit chainPresetChanged(m_presetName);
++    }
++}
++
+ void EffectChain::slotPresetListUpdated() {
+     setControlLoadedPresetIndex(presetIndex());
+     m_pControlNumChainPresets->forceSet(numPresets());
+diff --git a/src/effects/effectchain.h b/src/effects/effectchain.h
+index 900a0dcd..13b82c4e 100644
+--- a/src/effects/effectchain.h
++++ b/src/effects/effectchain.h
+@@ -116,6 +116,7 @@ class EffectChain : public QObject {
+ 
+   protected slots:
+     void slotEffectChainPresetRenamed(const QString& oldName, const QString& newName);
++    void slotEffectChainPresetDeleted(const QString& chainPresetName);
+     void slotPresetListUpdated();
+ 
+   private slots:
+diff --git a/src/effects/presets/effectchainpresetmanager.cpp b/src/effects/presets/effectchainpresetmanager.cpp
+index f352691b..577e0c89 100644
+--- a/src/effects/presets/effectchainpresetmanager.cpp
++++ b/src/effects/presets/effectchainpresetmanager.cpp
+@@ -377,6 +377,7 @@ bool EffectChainPresetManager::deletePreset(const QString& chainPresetName) {
+             m_effectChainPresets.take(chainPresetName);
+     m_effectChainPresetsSorted.removeAll(pPreset);
+     m_quickEffectChainPresetsSorted.removeAll(pPreset);
++    emit effectChainPresetDeleted(chainPresetName);
+     emit effectChainPresetListUpdated();
+     emit quickEffectChainPresetListUpdated();
+     return true;
+diff --git a/src/effects/presets/effectchainpresetmanager.h b/src/effects/presets/effectchainpresetmanager.h
+index a2cc6f6f..10374e87 100644
+--- a/src/effects/presets/effectchainpresetmanager.h
++++ b/src/effects/presets/effectchainpresetmanager.h
+@@ -88,6 +88,7 @@ class EffectChainPresetManager : public QObject {
+ 
+   signals:
+     void effectChainPresetRenamed(const QString& oldName, const QString& newName);
++    void effectChainPresetDeleted(const QString& chainPresetName);
+     void effectChainPresetListUpdated();
+     void quickEffectChainPresetListUpdated();
+ 
+diff --git a/src/widget/weffectchainpresetbutton.cpp b/src/widget/weffectchainpresetbutton.cpp
+index 402f3e08..d7d11bd6 100644
+--- a/src/widget/weffectchainpresetbutton.cpp
++++ b/src/widget/weffectchainpresetbutton.cpp
+@@ -110,6 +110,14 @@ void WEffectChainPresetButton::populateMenu() {
+     m_pMenu->addAction(tr("Save As New Preset..."), this, [this]() {
+         m_pChainPresetManager->savePresetAndReload(m_pChain);
+     });
++    // Last, and only for a preset that is loaded and can actually go: the
++    // manager asks for confirmation, refuses the read-only presets and drops
++    // the file, so this is only the way in.
++    if (!presetIsReadOnly && !m_pChain->presetName().isEmpty()) {
++        m_pMenu->addAction(tr("Delete Preset"), this, [this]() {
++            m_pChainPresetManager->deletePreset(m_pChain->presetName());
++        });
++    }
+ 
+     m_pMenu->addSeparator();
+ 
+-- 
+2.53.0.windows.3
+

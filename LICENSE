@@ -1,0 +1,22 @@
+Terminal-wide, a Mixxx skin.
+
+Licensed under the Creative Commons Attribution-ShareAlike 3.0 Unported
+licence (CC BY-SA 3.0).
+
+    https://creativecommons.org/licenses/by-sa/3.0/
+    Full legal text: https://creativecommons.org/licenses/by-sa/3.0/legalcode
+
+Why this licence: Terminal-wide's design derives from the Terminal skin, which
+derives from LateNight by jus, Owen Williams and ronso0, licensed CC BY-SA 3.0
+Unported. That obligation carries forward here.
+
+The layout is original. It takes its touch sizing and its tabbed page model as
+reference from Pioneered by Sven Boekelder (GPL-3.0) but carries none of its
+markup, so no GPL-3.0 obligation attaches.
+
+The icons under Terminal-wide/library/ are Mixxx's own sidebar icons, flattened
+and repainted. Mixxx is GPL-2.0-or-later; see the Mixxx project for the terms
+that cover them.
+
+The files under patches/ are changes to Mixxx itself and carry Mixxx's licence
+(GPL-2.0-or-later), not this one.

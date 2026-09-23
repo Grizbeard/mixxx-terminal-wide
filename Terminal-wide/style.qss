@@ -164,7 +164,7 @@ QToolTip {
 }
 
 /* Left, under the time, which is also left. This needs the wkey patch on the
-   terminal-skin branch: upstream WKey paints its own text with a hard-coded
+   patches/ directory: upstream WKey paints its own text with a hard-coded
    Qt::AlignCenter whenever key colours are on, and ignores both <Alignment>
    and the stylesheet. Without the patch the key reads centred instead - wrong
    but harmless. */

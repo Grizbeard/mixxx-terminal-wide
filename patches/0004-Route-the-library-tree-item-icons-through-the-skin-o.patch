@@ -1,0 +1,209 @@
+From b9395674f91cfcfb8439a3cab5dfba4b6481b177 Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Thu, 3 Sep 2026 23:51:15 -0500
+Subject: [PATCH 04/11] Route the library tree-item icons through the skin
+ override too
+
+The skin override only reached icons a LibraryFeature builds for itself.
+Five sidebar icons are set on tree items instead, straight from the Qt
+resource, so they kept the built-in orange while the feature rows above
+them followed the skin: the Crates node under Auto DJ, Serato's crates,
+the current history session, and the padlocks on a locked playlist or
+crate.
+
+Lift the lookup out of the constructor into LibraryFeature::iconForName
+and call it from those five, so a tree item and the feature it sits under
+resolve their icons the same way -- and so the QIcon::Selected
+registration that stops Qt tinting a highlighted row applies to them as
+well. Serato parses its crates on a worker thread through a free
+function, so that one takes the icon as an argument, built once on the
+GUI thread rather than per crate.
+
+Three of the names had no override to find, so add ic_library_locked,
+ic_library_locked_tracklist and ic_library_history_current to the set the
+Terminal generator emits.
+
+Verified in the running app: no saturated orange left anywhere in the
+sidebar, with Auto DJ and History expanded. The two padlocks need a
+locked playlist to appear and were not exercised.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ src/library/autodj/autodjfeature.cpp        |  2 +-
+ src/library/libraryfeature.cpp              | 36 ++++++++++++---------
+ src/library/libraryfeature.h                |  9 ++++++
+ src/library/serato/seratofeature.cpp        | 11 +++++--
+ src/library/trackset/crate/cratefeature.cpp |  3 +-
+ src/library/trackset/playlistfeature.cpp    |  2 +-
+ src/library/trackset/setlogfeature.cpp      |  4 +--
+ 7 files changed, 43 insertions(+), 24 deletions(-)
+
+diff --git a/src/library/autodj/autodjfeature.cpp b/src/library/autodj/autodjfeature.cpp
+index 5766387b..1b1d5f28 100644
+--- a/src/library/autodj/autodjfeature.cpp
++++ b/src/library/autodj/autodjfeature.cpp
+@@ -71,7 +71,7 @@ AutoDJFeature::AutoDJFeature(Library* pLibrary,
+     // Create the "Crates" tree-item under the root item.
+     std::unique_ptr<TreeItem> pRootItem = TreeItem::newRoot(this);
+     m_pCratesTreeItem = pRootItem->appendChild(tr("Crates"));
+-    m_pCratesTreeItem->setIcon(QIcon(":/images/library/ic_library_crates.svg"));
++    m_pCratesTreeItem->setIcon(iconForName(pConfig, QStringLiteral("crates")));
+ 
+     // Create tree-items under "Crates".
+     constructCrateChildModel();
+diff --git a/src/library/libraryfeature.cpp b/src/library/libraryfeature.cpp
+index 964a74c7..87346120 100644
+--- a/src/library/libraryfeature.cpp
++++ b/src/library/libraryfeature.cpp
+@@ -56,6 +56,25 @@ QString skinIconPath(const UserSettingsPointer& pConfig, const QString& iconName
+ 
+ } // anonymous namespace
+ 
++QIcon LibraryFeature::iconForName(
++        const UserSettingsPointer& pConfig, const QString& iconName) {
++    const QString overridePath = skinIconPath(pConfig, iconName);
++    if (overridePath.isEmpty()) {
++        return QIcon(kIconPath.arg(iconName));
++    }
++    QIcon icon(overridePath);
++    // QIcon generates the pixmap for a selected row by blending the Normal one
++    // 30% towards QPalette::Highlight, which on Windows is the OS accent
++    // colour and so is unrelated to the skin. Naming the file for the Selected
++    // mode as well makes QSvgIconEngine load it directly instead of generating
++    // a tinted variant, so an icon a skin ships is drawn in the colour it was
++    // authored in. Disabled is deliberately left to be generated, so disabled
++    // items still grey out.
++    icon.addFile(overridePath, QSize(), QIcon::Selected, QIcon::Off);
++    icon.addFile(overridePath, QSize(), QIcon::Selected, QIcon::On);
++    return icon;
++}
++
+ LibraryFeature::LibraryFeature(
+         Library* pLibrary,
+         UserSettingsPointer pConfig,
+@@ -65,22 +84,7 @@ LibraryFeature::LibraryFeature(
+           m_pConfig(pConfig),
+           m_iconName(iconName) {
+     if (!m_iconName.isEmpty()) {
+-        const QString overridePath = skinIconPath(m_pConfig, m_iconName);
+-        if (overridePath.isEmpty()) {
+-            m_icon = QIcon(kIconPath.arg(m_iconName));
+-        } else {
+-            m_icon = QIcon(overridePath);
+-            // QIcon generates the pixmap for a selected row by blending the
+-            // Normal one 30% towards QPalette::Highlight, which on Windows is
+-            // the OS accent colour and so is unrelated to the skin. Naming the
+-            // file for the Selected mode as well makes QSvgIconEngine load it
+-            // directly instead of generating a tinted variant, so an icon a
+-            // skin ships is drawn in the colour it was authored in. Disabled
+-            // is deliberately left to be generated, so disabled items still
+-            // grey out.
+-            m_icon.addFile(overridePath, QSize(), QIcon::Selected, QIcon::Off);
+-            m_icon.addFile(overridePath, QSize(), QIcon::Selected, QIcon::On);
+-        }
++        m_icon = iconForName(m_pConfig, m_iconName);
+     }
+ }
+ 
+diff --git a/src/library/libraryfeature.h b/src/library/libraryfeature.h
+index 4e8390a0..020834b6 100644
+--- a/src/library/libraryfeature.h
++++ b/src/library/libraryfeature.h
+@@ -32,6 +32,15 @@ class LibraryFeature : public QObject {
+             const QString& iconName);
+     ~LibraryFeature() override = default;
+ 
++    /// Icon for a sidebar row, honouring a skin's replacement for the built-in
++    /// artwork.
++    ///
++    /// Prefer this to building a QIcon from ":/images/library/..." directly: a
++    /// tree item that goes straight to the resource keeps the built-in colours
++    /// while the feature above it follows the skin.
++    static QIcon iconForName(
++            const UserSettingsPointer& pConfig, const QString& iconName);
++
+     virtual QVariant title() = 0;
+ 
+     /// Returns the icon name.
+diff --git a/src/library/serato/seratofeature.cpp b/src/library/serato/seratofeature.cpp
+index 005e3cf4..b9c01464 100644
+--- a/src/library/serato/seratofeature.cpp
++++ b/src/library/serato/seratofeature.cpp
+@@ -429,7 +429,9 @@ QString parseCrate(
+     return crateName;
+ }
+ 
+-QString parseDatabase(mixxx::DbConnectionPoolPtr dbConnectionPool, TreeItem* databaseItem) {
++QString parseDatabase(mixxx::DbConnectionPoolPtr dbConnectionPool,
++        TreeItem* databaseItem,
++        const QIcon& crateIcon) {
+     QString databaseName = databaseItem->getLabel();
+     QString databaseFilePath = databaseItem->getData().toList().at(0).toString();
+     QDir databaseDir = QFileInfo(databaseFilePath).dir();
+@@ -650,7 +652,7 @@ QString parseDatabase(mixxx::DbConnectionPoolPtr dbConnectionPool, TreeItem* dat
+                 TreeItem* crateItem = databaseItem->appendChild(crateName,
+                         QList<QVariant>{
+                                 QVariant(crateFilePath), QVariant(true)});
+-                crateItem->setIcon(QIcon(":/images/library/ic_library_crates.svg"));
++                crateItem->setIcon(crateIcon);
+             }
+         }
+     } else {
+@@ -1045,7 +1047,10 @@ void SeratoFeature::activateChild(const QModelIndex& index) {
+ 
+     if (!isPlaylist) {
+         // Let a worker thread do the parsing
+-        m_tracksFuture = QtConcurrent::run(parseDatabase, static_cast<Library*>(parent())->dbConnectionPool(), item);
++        m_tracksFuture = QtConcurrent::run(parseDatabase,
++                static_cast<Library*>(parent())->dbConnectionPool(),
++                item,
++                iconForName(m_pConfig, QStringLiteral("crates")));
+         m_tracksFutureWatcher.setFuture(m_tracksFuture);
+ 
+         // This device is now a playlist element, future activations should
+diff --git a/src/library/trackset/crate/cratefeature.cpp b/src/library/trackset/crate/cratefeature.cpp
+index 2ba79c24..0e0c331f 100644
+--- a/src/library/trackset/crate/cratefeature.cpp
++++ b/src/library/trackset/crate/cratefeature.cpp
+@@ -49,7 +49,8 @@ using namespace mixxx::library::prefs;
+ CrateFeature::CrateFeature(Library* pLibrary,
+         UserSettingsPointer pConfig)
+         : BaseTrackSetFeature(pLibrary, pConfig, "CRATEHOME", QStringLiteral("crates")),
+-          m_lockedCrateIcon(":/images/library/ic_library_locked_tracklist.svg"),
++          m_lockedCrateIcon(
++                  iconForName(pConfig, QStringLiteral("locked_tracklist"))),
+           m_pTrackCollection(pLibrary->trackCollectionManager()->internalCollection()),
+           m_crateTableModel(this, pLibrary->trackCollectionManager()) {
+     initActions();
+diff --git a/src/library/trackset/playlistfeature.cpp b/src/library/trackset/playlistfeature.cpp
+index ee4f5082..c505e0eb 100644
+--- a/src/library/trackset/playlistfeature.cpp
++++ b/src/library/trackset/playlistfeature.cpp
+@@ -378,7 +378,7 @@ QModelIndex PlaylistFeature::constructChildModel(int selectedId) {
+ void PlaylistFeature::decorateChild(TreeItem* item, int playlistId) {
+     if (m_playlistDao.isPlaylistLocked(playlistId)) {
+         item->setIcon(
+-                QIcon(":/images/library/ic_library_locked_tracklist.svg"));
++                iconForName(m_pConfig, QStringLiteral("locked_tracklist")));
+     } else {
+         item->setIcon(QIcon());
+     }
+diff --git a/src/library/trackset/setlogfeature.cpp b/src/library/trackset/setlogfeature.cpp
+index a548c075..0a2eee8f 100644
+--- a/src/library/trackset/setlogfeature.cpp
++++ b/src/library/trackset/setlogfeature.cpp
+@@ -349,9 +349,9 @@ QModelIndex SetlogFeature::constructChildModel(int selectedId) {
+ 
+ void SetlogFeature::decorateChild(TreeItem* item, int playlistId) {
+     if (playlistId == m_currentPlaylistId) {
+-        item->setIcon(QIcon(":/images/library/ic_library_history_current.svg"));
++        item->setIcon(iconForName(m_pConfig, QStringLiteral("history_current")));
+     } else if (m_playlistDao.isPlaylistLocked(playlistId)) {
+-        item->setIcon(QIcon(":/images/library/ic_library_locked.svg"));
++        item->setIcon(iconForName(m_pConfig, QStringLiteral("locked")));
+     } else {
+         item->setIcon(QIcon());
+     }
+-- 
+2.53.0.windows.3
+
