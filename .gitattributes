@@ -1,0 +1,2 @@
+# Patches must stay LF or "git am" chokes on them after a CRLF checkout.
+patches/*.patch -text
