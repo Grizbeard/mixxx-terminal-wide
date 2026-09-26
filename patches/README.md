@@ -42,8 +42,9 @@ do not want and the rest still apply.
 | 0010 `WKey` honours the skin's alignment | the deck's key reads centred instead of from the left |
 | 0011 gap between the key colour bar and the key text | the bar and the first glyph butt together |
 | 0012 wet-only effect units (send/return) | **no post-fader effects**: every unit on the fx page reads *pre-fader*, and the DJM-T1_Custom mapping leaves units 1 and 2 as ordinary units and says so in the log |
+| 0013 library device lists follow mounts | a USB drive plugged in or pulled mid-session only shows up in (or leaves) Computer > Removable Devices, Rekordbox and Serato when that node is collapsed and expanded again |
 
-0007 and 0012 cost features. The rest are cosmetic, and the skin is built to
+0007, 0012 and 0013 cost features. The rest are cosmetic, and the skin is built to
 degrade quietly without them.
 
 0012 is not cosmetic in the other direction either: it changes the audio engine.

@@ -1,0 +1,595 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Sat, 26 Sep 2026 12:30:00 -0500
+Subject: [PATCH 13/13] Keep the library's device lists in step with mounts
+
+[AI-generated text: this description was written autonomously by an AI
+agent (Claude). Review it before relying on it or submitting it.]
+
+Computer > Removable Devices, and the device lists of the Rekordbox and
+Serato features, are built when they are expanded or activated and never
+again. A drive plugged in afterwards does not appear, and one pulled out
+stays listed, until the node is collapsed and expanded - which on a
+touchscreen appliance with no mouse is hard to do and not obvious to
+need.
+
+RemovableDeviceWatcher watches the directories devices are mounted under
+(/media, /media/$USER and /run/media/$USER on Linux, the same ones those
+features already look in). Mounting creates a directory in one of them
+and unmounting removes it, so a QFileSystemWatcher on them sees exactly
+that, and nothing that happens inside a device. Changes are coalesced
+and reported once things have been quiet for half a second. A root that
+does not exist yet is picked up when it appears, but never by watching a
+top-level directory such as /run. On other platforms there is nothing to
+watch and the watcher does nothing.
+
+On a change, BrowseFeature rebuilds Removable Devices the way expanding
+it does, and clears the track list if it was showing a folder on a
+device that has gone. RekordboxFeature and SeratoFeature look for
+devices again without switching the view; a change that arrives while a
+search is running is looked for once that search is done.
+
+Their removal loops walked forwards while removing rows, which skipped
+the device after each one removed. They walk backwards now, so pulling
+two drives at once removes both.
+
+BrowseTableModel::setPath() with an empty path never cleared the list:
+the browse thread skips an empty path without clearing the model, so the
+previous folder's files stayed listed after selecting Quick Links or
+Removable Devices - which the caller's own comment says should clear the
+tracks view - and, now, after the device holding that folder had gone.
+It clears the model itself.
+
+removabledevicewatcher_test covers mount and unmount being reported, a
+burst being reported once, a root that appears later, changes inside a
+device being ignored, and an empty root list.
+
+[End of AI-generated text.]
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 370847ee..7f31716d 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1447,6 +1447,7 @@ add_library(
+   src/library/recording/dlgrecording.ui
+   src/library/recording/recordingfeature.cpp
+   src/library/rekordbox/rekordboxfeature.cpp
++  src/library/removabledevicewatcher.cpp
+   src/library/rhythmbox/rhythmboxfeature.cpp
+   src/library/scanner/importfilestask.cpp
+   src/library/scanner/libraryscanner.cpp
+@@ -2961,6 +2962,7 @@ if(BUILD_TESTING)
+     src/test/queryutiltest.cpp
+     src/test/rangelist_test.cpp
+     src/test/readaheadmanager_test.cpp
++    src/test/removabledevicewatcher_test.cpp
+     src/test/replaygaintest.cpp
+     src/test/rescalertest.cpp
+     src/test/rgbcolor_test.cpp
+diff --git a/src/library/browse/browsefeature.cpp b/src/library/browse/browsefeature.cpp
+index 8ef5e7dd..7e600311 100644
+--- a/src/library/browse/browsefeature.cpp
++++ b/src/library/browse/browsefeature.cpp
+@@ -10,6 +10,7 @@
+ 
+ #include "library/browse/foldertreemodel.h"
+ #include "library/library.h"
++#include "library/removabledevicewatcher.h"
+ #include "library/trackcollection.h"
+ #include "library/trackcollectionmanager.h"
+ #include "library/treeitem.h"
+@@ -97,6 +98,13 @@ BrowseFeature::BrowseFeature(
+             this,
+             &BrowseFeature::slotRefreshDirectoryTree);
+ 
++    m_pDeviceWatcher = new RemovableDeviceWatcher(
++            RemovableDeviceWatcher::defaultRootPaths(), this);
++    connect(m_pDeviceWatcher,
++            &RemovableDeviceWatcher::devicesChanged,
++            this,
++            &BrowseFeature::slotRemovableDevicesChanged);
++
+     m_proxyModel.setFilterCaseSensitivity(Qt::CaseInsensitive);
+     m_proxyModel.setSortCaseSensitivity(Qt::CaseInsensitive);
+     // BrowseThread sets the Qt::UserRole of every QStandardItem to the sort key
+@@ -309,6 +317,7 @@ void BrowseFeature::activateChild(const QModelIndex& index) {
+     if (path == QUICK_LINK_NODE || path == DEVICE_NODE) {
+         emit saveModelState();
+         // Clear the tracks view
++        m_browsedPath.clear();
+         m_browseModel.setPath({});
+     } else {
+         // Open a security token for this path and if we do not have access, ask
+@@ -325,6 +334,7 @@ void BrowseFeature::activateChild(const QModelIndex& index) {
+             }
+         }
+         emit saveModelState();
++        m_browsedPath = path;
+         m_browseModel.setPath(std::move(dirAccess));
+     }
+     emit showTrackModel(&m_proxyModel);
+@@ -481,6 +491,24 @@ void BrowseFeature::onLazyChildExpandation(const QModelIndex& index) {
+     }
+ }
+ 
++// A device was mounted or unmounted: rebuild Removable Devices the way
++// collapsing and expanding it would, so it lists what is actually there.
++void BrowseFeature::slotRemovableDevicesChanged() {
++    TreeItem* pRoot = m_pSidebarModel->getRootItem();
++    for (int row = 0; pRoot && row < pRoot->childRows(); ++row) {
++        if (pRoot->child(row)->getData().toString() == DEVICE_NODE) {
++            onLazyChildExpandation(m_pSidebarModel->index(row, 0));
++            break;
++        }
++    }
++    // The track list may be showing a folder on the device that just went.
++    // Clear it rather than go on listing files that are no longer there.
++    if (!m_browsedPath.isEmpty() && !QFileInfo(m_browsedPath).isDir()) {
++        m_browsedPath.clear();
++        m_browseModel.setPath({});
++    }
++}
++
+ std::vector<std::unique_ptr<TreeItem>> BrowseFeature::getChildDirectoryItems(
+         const QString& path) const {
+     std::vector<std::unique_ptr<TreeItem>> items;
+diff --git a/src/library/browse/browsefeature.h b/src/library/browse/browsefeature.h
+index d809406a..e86d16c7 100644
+--- a/src/library/browse/browsefeature.h
++++ b/src/library/browse/browsefeature.h
+@@ -16,6 +16,7 @@
+ #define DEVICE_NODE "::mixxx_device_node::"
+ 
+ class Library;
++class RemovableDeviceWatcher;
+ class TrackCollection;
+ class WLibrarySidebar;
+ class QModelIndex;
+@@ -65,12 +66,16 @@ class BrowseFeature : public LibraryFeature {
+     void saveQuickLinks();
+     void loadQuickLinks();
+     QString getLastRightClickedPath() const;
++    void slotRemovableDevicesChanged();
+ 
+     TrackCollection* const m_pTrackCollection;
+ 
+     BrowseTableModel m_browseModel;
+     ProxyTrackModel m_proxyModel;
+     FolderTreeModel* m_pSidebarModel;
++    RemovableDeviceWatcher* m_pDeviceWatcher;
++    // The folder the track list is showing, or empty for a built-in node.
++    QString m_browsedPath;
+     QAction* m_pAddQuickLinkAction;
+     QAction* m_pRemoveQuickLinkAction;
+     QAction* m_pAddtoLibraryAction;
+diff --git a/src/library/browse/browsetablemodel.cpp b/src/library/browse/browsetablemodel.cpp
+index 87902b4f..716a2f43 100644
+--- a/src/library/browse/browsetablemodel.cpp
++++ b/src/library/browse/browsetablemodel.cpp
+@@ -213,6 +213,11 @@ void BrowseTableModel::setPath(mixxx::FileAccess path) {
+     } else {
+         m_currentDirectory = {};
+         m_pBrowseThread->executePopulation({}, this);
++        // The thread skips an empty path without clearing the model, which
++        // left the previous folder's files listed: after selecting a built-in
++        // node, or once the device the folder was on had gone. There is
++        // nothing to list, so clear it here.
++        removeRows(0, rowCount());
+     }
+ }
+ 
+diff --git a/src/library/rekordbox/rekordboxfeature.cpp b/src/library/rekordbox/rekordboxfeature.cpp
+index 706bf585..3e8e6228 100644
+--- a/src/library/rekordbox/rekordboxfeature.cpp
++++ b/src/library/rekordbox/rekordboxfeature.cpp
+@@ -18,6 +18,7 @@
+ #include "library/library.h"
+ #include "library/queryutil.h"
+ #include "library/rekordbox/rekordboxconstants.h"
++#include "library/removabledevicewatcher.h"
+ #include "library/trackcollection.h"
+ #include "library/trackcollectionmanager.h"
+ #include "library/treeitem.h"
+@@ -1387,6 +1388,22 @@ RekordboxFeature::RekordboxFeature(
+             &QFutureWatcher<QString>::finished,
+             this,
+             &RekordboxFeature::onTracksFound);
++    // A device mounted or unmounted while a search was already running is
++    // looked for once that search is done.
++    connect(&m_devicesFutureWatcher,
++            &QFutureWatcher<QList<TreeItem*>>::finished,
++            this,
++            [this] {
++                if (m_refreshDevicesAgain) {
++                    m_refreshDevicesAgain = false;
++                    refreshDevices();
++                }
++            });
++    connect(new RemovableDeviceWatcher(
++                    RemovableDeviceWatcher::defaultRootPaths(), this),
++            &RemovableDeviceWatcher::devicesChanged,
++            this,
++            &RekordboxFeature::refreshDevices);
+     // initialize the model
+     m_pSidebarModel->setRootItem(TreeItem::newRoot(this));
+ }
+@@ -1498,16 +1515,24 @@ void RekordboxFeature::refreshLibraryModels() {
+ void RekordboxFeature::activate() {
+     qDebug() << "RekordboxFeature::activate()";
+ 
++    refreshDevices();
++
++    emit enableCoverArtDisplay(true);
++    emit switchToView("REKORDBOXHOME");
++    emit disableSearch();
++}
++
++void RekordboxFeature::refreshDevices() {
++    if (m_devicesFuture.isRunning()) {
++        m_refreshDevicesAgain = true;
++        return;
++    }
+     // Let a worker thread do the XML parsing
+     m_devicesFuture = QtConcurrent::run(findRekordboxDevices);
+     m_devicesFutureWatcher.setFuture(m_devicesFuture);
+     m_title = tr("(loading) Rekordbox");
+     //calls a slot in the sidebar model such that 'Rekordbox (isLoading)' is displayed.
+     emit featureIsLoading(this, true);
+-
+-    emit enableCoverArtDisplay(true);
+-    emit switchToView("REKORDBOXHOME");
+-    emit disableSearch();
+ }
+ 
+ void RekordboxFeature::activateChild(const QModelIndex& index) {
+@@ -1581,7 +1606,8 @@ void RekordboxFeature::onRekordboxDevicesFound() {
+             m_pSidebarModel->removeRows(0, root->childRows());
+         }
+     } else {
+-        for (int deviceIndex = 0; deviceIndex < root->childRows(); deviceIndex++) {
++        // Backwards, since removing a row moves the next one into its place.
++        for (int deviceIndex = root->childRows() - 1; deviceIndex >= 0; deviceIndex--) {
+             TreeItem* child = root->child(deviceIndex);
+             bool removeChild = true;
+ 
+diff --git a/src/library/rekordbox/rekordboxfeature.h b/src/library/rekordbox/rekordboxfeature.h
+index 2f1987cb..745a54ea 100644
+--- a/src/library/rekordbox/rekordboxfeature.h
++++ b/src/library/rekordbox/rekordboxfeature.h
+@@ -91,4 +91,9 @@ class RekordboxFeature : public BaseExternalLibraryFeature {
+     QString m_title;
+ 
+     QSharedPointer<BaseTrackCache> m_trackSource;
++
++    // Look for devices again without changing the view, when one is mounted
++    // or unmounted (RemovableDeviceWatcher), as well as on activate().
++    void refreshDevices();
++    bool m_refreshDevicesAgain = false;
+ };
+diff --git a/src/library/serato/seratofeature.cpp b/src/library/serato/seratofeature.cpp
+index 0d93c0d6..a78f2227 100644
+--- a/src/library/serato/seratofeature.cpp
++++ b/src/library/serato/seratofeature.cpp
+@@ -13,6 +13,7 @@
+ #include "library/dao/trackschema.h"
+ #include "library/library.h"
+ #include "library/queryutil.h"
++#include "library/removabledevicewatcher.h"
+ #include "library/serato/seratoplaylistmodel.h"
+ #include "library/trackcollection.h"
+ #include "library/trackcollectionmanager.h"
+@@ -1058,6 +1059,22 @@ SeratoFeature::SeratoFeature(
+             &QFutureWatcher<QString>::finished,
+             this,
+             &SeratoFeature::onTracksFound);
++    // A device mounted or unmounted while a search was already running is
++    // looked for once that search is done.
++    connect(&m_databasesFutureWatcher,
++            &QFutureWatcher<QList<TreeItem*>>::finished,
++            this,
++            [this] {
++                if (m_refreshDatabasesAgain) {
++                    m_refreshDatabasesAgain = false;
++                    refreshDatabases();
++                }
++            });
++    connect(new RemovableDeviceWatcher(
++                    RemovableDeviceWatcher::defaultRootPaths(), this),
++            &RemovableDeviceWatcher::devicesChanged,
++            this,
++            &SeratoFeature::refreshDatabases);
+ 
+     // initialize the model
+     m_pSidebarModel->setRootItem(TreeItem::newRoot(this));
+@@ -1155,16 +1172,24 @@ void SeratoFeature::refreshLibraryModels() {
+ void SeratoFeature::activate() {
+     qDebug() << "SeratoFeature::activate()";
+ 
++    refreshDatabases();
++
++    emit enableCoverArtDisplay(true);
++    emit switchToView("SERATOHOME");
++    emit disableSearch();
++}
++
++void SeratoFeature::refreshDatabases() {
++    if (m_databasesFuture.isRunning()) {
++        m_refreshDatabasesAgain = true;
++        return;
++    }
+     // Let a worker thread do the parsing
+     m_databasesFuture = QtConcurrent::run(findSeratoDatabases);
+     m_databasesFutureWatcher.setFuture(m_databasesFuture);
+     m_title = tr("(loading) Serato");
+     //calls a slot in the sidebar model such that 'Serato (isLoading)' is displayed.
+     emit featureIsLoading(this, true);
+-
+-    emit enableCoverArtDisplay(true);
+-    emit switchToView("SERATOHOME");
+-    emit disableSearch();
+ }
+ 
+ void SeratoFeature::activateChild(const QModelIndex& index) {
+@@ -1228,7 +1253,8 @@ void SeratoFeature::onSeratoDatabasesFound() {
+             m_pSidebarModel->removeRows(0, root->childRows());
+         }
+     } else {
+-        for (int databaseIndex = 0; databaseIndex < root->childRows(); databaseIndex++) {
++        // Backwards, since removing a row moves the next one into its place.
++        for (int databaseIndex = root->childRows() - 1; databaseIndex >= 0; databaseIndex--) {
+             TreeItem* child = root->child(databaseIndex);
+             bool removeChild = true;
+ 
+diff --git a/src/library/serato/seratofeature.h b/src/library/serato/seratofeature.h
+index 7c1a0868..b53653ab 100644
+--- a/src/library/serato/seratofeature.h
++++ b/src/library/serato/seratofeature.h
+@@ -58,4 +58,9 @@ class SeratoFeature : public BaseExternalLibraryFeature {
+     QString m_title;
+ 
+     QSharedPointer<BaseTrackCache> m_trackSource;
++
++    // Look for databases again without changing the view, when a device is
++    // mounted or unmounted (RemovableDeviceWatcher), as well as on activate().
++    void refreshDatabases();
++    bool m_refreshDatabasesAgain = false;
+ };
+diff --git a/src/library/removabledevicewatcher.h b/src/library/removabledevicewatcher.h
+new file mode 100644
+index 00000000..f10e1936
+--- /dev/null
++++ b/src/library/removabledevicewatcher.h
+@@ -0,0 +1,45 @@
++#pragma once
++
++#include <QFileSystemWatcher>
++#include <QObject>
++#include <QStringList>
++#include <QTimer>
++
++/// Tells the library features that list removable devices when one has been
++/// mounted or unmounted, so that their sidebar trees follow without having to
++/// be collapsed and expanded again.
++///
++/// It watches the directories devices get mounted under. Mounting a device
++/// creates a directory in one of them and unmounting removes it, and that is
++/// what this reacts to; activity inside a device does not reach it. A root
++/// that does not exist yet - /run/media/$USER before anything has been mounted,
++/// say - is picked up when it appears, provided its parent is below a top-level
++/// directory: watching /run itself would wake up for every pid file.
++///
++/// Changes are coalesced. devicesChanged() is emitted once things have been
++/// quiet for kSettleMs, by which time a mount that created its directory first
++/// has finished.
++class RemovableDeviceWatcher : public QObject {
++    Q_OBJECT
++  public:
++    static constexpr int kSettleMs = 500;
++
++    explicit RemovableDeviceWatcher(
++            QStringList rootPaths, QObject* pParent = nullptr);
++
++    /// The directories Mixxx looks in for removable devices: /media,
++    /// /media/$USER and /run/media/$USER on Linux. Empty on other platforms,
++    /// where a watcher built from them does nothing.
++    static QStringList defaultRootPaths();
++
++  signals:
++    void devicesChanged();
++
++  private:
++    void slotDirectoryChanged();
++    void updateWatchedPaths();
++
++    const QStringList m_rootPaths;
++    QFileSystemWatcher m_watcher;
++    QTimer m_settleTimer;
++};
+diff --git a/src/library/removabledevicewatcher.cpp b/src/library/removabledevicewatcher.cpp
+new file mode 100644
+index 00000000..f92ac552
+--- /dev/null
++++ b/src/library/removabledevicewatcher.cpp
+@@ -0,0 +1,80 @@
++#include "library/removabledevicewatcher.h"
++
++#include <QDir>
++#include <QFileInfo>
++
++#include "moc_removabledevicewatcher.cpp"
++
++namespace {
++
++/// "/run" is 1, "/run/media" is 2.
++int pathDepth(const QString& path) {
++    return static_cast<int>(QDir::cleanPath(path).count(QLatin1Char('/')));
++}
++
++} // namespace
++
++RemovableDeviceWatcher::RemovableDeviceWatcher(
++        QStringList rootPaths, QObject* pParent)
++        : QObject(pParent),
++          m_rootPaths(std::move(rootPaths)) {
++    m_settleTimer.setSingleShot(true);
++    m_settleTimer.setInterval(kSettleMs);
++    connect(&m_settleTimer,
++            &QTimer::timeout,
++            this,
++            &RemovableDeviceWatcher::devicesChanged);
++    connect(&m_watcher,
++            &QFileSystemWatcher::directoryChanged,
++            this,
++            &RemovableDeviceWatcher::slotDirectoryChanged);
++    updateWatchedPaths();
++}
++
++// static
++QStringList RemovableDeviceWatcher::defaultRootPaths() {
++#if defined(__LINUX__)
++    const QString user = QString::fromLocal8Bit(qgetenv("USER"));
++    return {
++            QStringLiteral("/media"),
++            QStringLiteral("/media/") + user,
++            QStringLiteral("/run/media/") + user,
++    };
++#else
++    return {};
++#endif
++}
++
++void RemovableDeviceWatcher::slotDirectoryChanged() {
++    // A root may have just appeared, or gone away with its parent still here.
++    updateWatchedPaths();
++    m_settleTimer.start();
++}
++
++void RemovableDeviceWatcher::updateWatchedPaths() {
++    QStringList wanted;
++    for (const QString& root : m_rootPaths) {
++        const QFileInfo rootInfo(root);
++        if (rootInfo.isDir()) {
++            wanted.append(rootInfo.absoluteFilePath());
++            continue;
++        }
++        const QString parent = rootInfo.absolutePath();
++        if (pathDepth(parent) >= 2 && QFileInfo(parent).isDir()) {
++            wanted.append(parent);
++        }
++    }
++    wanted.removeDuplicates();
++
++    const QStringList watched = m_watcher.directories();
++    for (const QString& path : watched) {
++        if (!wanted.contains(path)) {
++            m_watcher.removePath(path);
++        }
++    }
++    for (const QString& path : std::as_const(wanted)) {
++        if (!watched.contains(path)) {
++            m_watcher.addPath(path);
++        }
++    }
++}
+diff --git a/src/test/removabledevicewatcher_test.cpp b/src/test/removabledevicewatcher_test.cpp
+new file mode 100644
+index 00000000..93811941
+--- /dev/null
++++ b/src/test/removabledevicewatcher_test.cpp
+@@ -0,0 +1,92 @@
++// Tests for RemovableDeviceWatcher, against temporary directories standing in
++// for the places devices get mounted under.
++
++#include "library/removabledevicewatcher.h"
++
++#include <gtest/gtest.h>
++
++#include <QDir>
++#include <QSignalSpy>
++#include <QTemporaryDir>
++
++#include "test/mixxxtest.h"
++
++namespace {
++
++// Comfortably more than the settle time, for a slow machine.
++constexpr int kWaitMs = RemovableDeviceWatcher::kSettleMs + 3000;
++
++class RemovableDeviceWatcherTest : public MixxxTest {
++  protected:
++    void SetUp() override {
++        ASSERT_TRUE(m_tempDir.isValid());
++        m_base = QDir(m_tempDir.path());
++    }
++
++    QString path(const QString& relative) const {
++        return m_base.filePath(relative);
++    }
++
++    QTemporaryDir m_tempDir;
++    QDir m_base;
++};
++
++TEST_F(RemovableDeviceWatcherTest, MountAndUnmountAreEachReported) {
++    ASSERT_TRUE(m_base.mkpath("run/media/user"));
++    RemovableDeviceWatcher watcher({path("run/media/user")});
++    QSignalSpy spy(&watcher, &RemovableDeviceWatcher::devicesChanged);
++
++    ASSERT_TRUE(m_base.mkdir("run/media/user/MUSIC-1A2B3C4D"));
++    ASSERT_TRUE(spy.wait(kWaitMs));
++    EXPECT_EQ(spy.count(), 1);
++
++    ASSERT_TRUE(m_base.rmdir("run/media/user/MUSIC-1A2B3C4D"));
++    ASSERT_TRUE(spy.wait(kWaitMs));
++    EXPECT_EQ(spy.count(), 2);
++}
++
++TEST_F(RemovableDeviceWatcherTest, ABurstOfChangesIsReportedOnce) {
++    ASSERT_TRUE(m_base.mkpath("media"));
++    RemovableDeviceWatcher watcher({path("media")});
++    QSignalSpy spy(&watcher, &RemovableDeviceWatcher::devicesChanged);
++
++    ASSERT_TRUE(m_base.mkdir("media/A"));
++    ASSERT_TRUE(m_base.mkdir("media/B"));
++    ASSERT_TRUE(m_base.mkdir("media/C"));
++    ASSERT_TRUE(spy.wait(kWaitMs));
++    // Nothing more once it has settled.
++    EXPECT_FALSE(spy.wait(RemovableDeviceWatcher::kSettleMs * 2));
++    EXPECT_EQ(spy.count(), 1);
++}
++
++// /run/media/$USER does not exist until something is first mounted there.
++TEST_F(RemovableDeviceWatcherTest, ARootThatAppearsLaterIsWatched) {
++    ASSERT_TRUE(m_base.mkpath("run/media"));
++    RemovableDeviceWatcher watcher({path("run/media/user")});
++    QSignalSpy spy(&watcher, &RemovableDeviceWatcher::devicesChanged);
++
++    ASSERT_TRUE(m_base.mkpath("run/media/user"));
++    ASSERT_TRUE(spy.wait(kWaitMs));
++    const int afterRoot = spy.count();
++
++    ASSERT_TRUE(m_base.mkdir("run/media/user/USB-5E6F"));
++    ASSERT_TRUE(spy.wait(kWaitMs));
++    EXPECT_EQ(spy.count(), afterRoot + 1);
++}
++
++TEST_F(RemovableDeviceWatcherTest, ChangesInsideADeviceAreNotReported) {
++    ASSERT_TRUE(m_base.mkpath("media/MUSIC/Tracks"));
++    RemovableDeviceWatcher watcher({path("media")});
++    QSignalSpy spy(&watcher, &RemovableDeviceWatcher::devicesChanged);
++
++    ASSERT_TRUE(m_base.mkdir("media/MUSIC/Tracks/New"));
++    EXPECT_FALSE(spy.wait(RemovableDeviceWatcher::kSettleMs * 2));
++}
++
++TEST_F(RemovableDeviceWatcherTest, NoRootsMeansNothingToDo) {
++    RemovableDeviceWatcher watcher({});
++    QSignalSpy spy(&watcher, &RemovableDeviceWatcher::devicesChanged);
++    EXPECT_FALSE(spy.wait(RemovableDeviceWatcher::kSettleMs * 2));
++}
++
++} // namespace
+-- 
+2.51.0
