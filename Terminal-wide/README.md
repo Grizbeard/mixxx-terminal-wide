@@ -333,6 +333,19 @@ Under the tempo readouts, three rows the options page turns on and off:
   switched that off. A cue whose stored colour is black — common on tracks
   carrying imported Serato or rekordbox markers — therefore paints black on a
   black ground on a multi-hue scheme. That is the track's data, not the skin.
+
+  The row of four follows a controller's bank. A four-button controller reaches
+  cues 5-8 through a bank button, and the skin reads which bank each deck is on
+  from `[TerminalWide],hotcue_bank_1` and `_2`: 0 shows cues 1-4, 1 shows 5-8.
+  The skin only reads them. A mapping that wants the screen to match its pads
+  writes them, as DJM-T1_Custom does from ACTIVE A/B. Nothing writing them
+  leaves them at 0, and the row at 1-4. Controllers can start before the skin
+  has loaded (in a QOpenGL build they always do), so a mapping has to allow for
+  the controls not existing yet when it starts. Two rows of eight ignore the
+  bank.
+
+  Eight cues, beatjump on and a 72px full-width overview together are taller
+  than the deck column, and Qt overlaps rows to fit them. Drop any one of them.
 - **loop length** and **beatjump length** share one row: `loop · 4 · ◀ · 4 · ▶`.
   Beatjump is off by default — with turntables doing the playing it is the
   least-used, and the panel is 480px tall. With both off the row collapses

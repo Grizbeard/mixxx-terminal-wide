@@ -1,0 +1,43 @@
+<!DOCTYPE template>
+<!--
+  Description:
+    Four hotcue buttons in a row, shown while one control has one value.
+
+    The visibility is a template variable rather than something the caller
+    wraps round the row, so each row stays a direct child of the deck column,
+    as the rows were before this template existed. The column is short on
+    height, and an extra layer of fixed-height groups changes which rows Qt
+    squeezes when it runs out.
+
+  Variables:
+    Group:           the deck, e.g. [Channel1]
+    C1, C2, C3, C4:  the four cue numbers, left to right
+    ShowKey:         the control the row's visibility follows, "[Group],key"
+    ShowWhen:        the value of ShowKey at which the row is shown
+-->
+<Template>
+  <WidgetGroup>
+    <ObjectName>DeckHotcueRow</ObjectName>
+    <Layout>horizontal</Layout>
+    <Size>0me,44f</Size>
+    <Children>
+      <Template src="skin:templates/hotcue_button.xml">
+        <SetVariable name="Number"><Variable name="C1"/></SetVariable>
+      </Template>
+      <Template src="skin:templates/hotcue_button.xml">
+        <SetVariable name="Number"><Variable name="C2"/></SetVariable>
+      </Template>
+      <Template src="skin:templates/hotcue_button.xml">
+        <SetVariable name="Number"><Variable name="C3"/></SetVariable>
+      </Template>
+      <Template src="skin:templates/hotcue_button.xml">
+        <SetVariable name="Number"><Variable name="C4"/></SetVariable>
+      </Template>
+    </Children>
+    <Connection>
+      <ConfigKey><Variable name="ShowKey"/></ConfigKey>
+      <Transform><IsEqual><Variable name="ShowWhen"/></IsEqual></Transform>
+      <BindProperty>visible</BindProperty>
+    </Connection>
+  </WidgetGroup>
+</Template>

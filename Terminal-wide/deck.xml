@@ -351,58 +351,67 @@
         </Children>
       </WidgetGroup>
 
-      <!-- Hot cues. One row of four, or two rows of eight, or neither:
-           [TerminalWide],hotcue_count is 0, 1 or 2 and the second row is bound
-           to the 2. The first row's binding is the bare control, so it shows
-           for both 1 and 2 and hides only at 0. -->
+      <!-- Hot cues: none, one row of four, or two rows for all eight, as
+           [TerminalWide],hotcue_count says (0, 1, 2).
+
+           The row of four follows the controller. A four-button controller
+           reaches cues 5-8 through a bank button, and the mapping publishes
+           which bank each deck is on as [TerminalWide],hotcue_bank_<deck>
+           (0 = cues 1-4, 1 = cues 5-8), so the row on screen is the four the
+           pads are addressing. With no mapping writing it the control stays
+           0, and the row is 1-4 as before. With all eight showing the bank
+           does not matter, and those two rows are the deck's own children,
+           exactly as before.
+
+           Two rows bound to the bank rather than a WidgetStack: a stack's
+           page control is an XML attribute, which takes no <Variable>, so one
+           stack could not serve both decks. -->
       <WidgetGroup>
-        <ObjectName>DeckHotcueRow</ObjectName>
-        <Layout>horizontal</Layout>
+        <ObjectName>DeckHotcuesFour</ObjectName>
+        <Layout>vertical</Layout>
         <Size>0me,44f</Size>
         <Children>
-          <Template src="skin:templates/hotcue_button.xml">
-            <SetVariable name="Number">1</SetVariable>
+          <Template src="skin:templates/hotcue_row.xml">
+            <SetVariable name="C1">1</SetVariable>
+            <SetVariable name="C2">2</SetVariable>
+            <SetVariable name="C3">3</SetVariable>
+            <SetVariable name="C4">4</SetVariable>
+            <SetVariable name="ShowKey">[TerminalWide],hotcue_bank_<Variable name="ChanNum"/></SetVariable>
+            <SetVariable name="ShowWhen">0</SetVariable>
           </Template>
-          <Template src="skin:templates/hotcue_button.xml">
-            <SetVariable name="Number">2</SetVariable>
-          </Template>
-          <Template src="skin:templates/hotcue_button.xml">
-            <SetVariable name="Number">3</SetVariable>
-          </Template>
-          <Template src="skin:templates/hotcue_button.xml">
-            <SetVariable name="Number">4</SetVariable>
+          <Template src="skin:templates/hotcue_row.xml">
+            <SetVariable name="C1">5</SetVariable>
+            <SetVariable name="C2">6</SetVariable>
+            <SetVariable name="C3">7</SetVariable>
+            <SetVariable name="C4">8</SetVariable>
+            <SetVariable name="ShowKey">[TerminalWide],hotcue_bank_<Variable name="ChanNum"/></SetVariable>
+            <SetVariable name="ShowWhen">1</SetVariable>
           </Template>
         </Children>
         <Connection>
           <ConfigKey persist="true">[TerminalWide],hotcue_count</ConfigKey>
+          <Transform><IsEqual>1</IsEqual></Transform>
           <BindProperty>visible</BindProperty>
         </Connection>
       </WidgetGroup>
 
-      <WidgetGroup>
-        <ObjectName>DeckHotcueRow</ObjectName>
-        <Layout>horizontal</Layout>
-        <Size>0me,44f</Size>
-        <Children>
-          <Template src="skin:templates/hotcue_button.xml">
-            <SetVariable name="Number">5</SetVariable>
-          </Template>
-          <Template src="skin:templates/hotcue_button.xml">
-            <SetVariable name="Number">6</SetVariable>
-          </Template>
-          <Template src="skin:templates/hotcue_button.xml">
-            <SetVariable name="Number">7</SetVariable>
-          </Template>
-          <Template src="skin:templates/hotcue_button.xml">
-            <SetVariable name="Number">8</SetVariable>
-          </Template>
-        </Children>
-        <Connection>
-          <ConfigKey persist="true">[TerminalWide],hotcue_count</ConfigKey>
-          <Transform><IsEqual>2</IsEqual></Transform>
-          <BindProperty>visible</BindProperty>
-        </Connection>
-      </WidgetGroup>
+      <Template src="skin:templates/hotcue_row.xml">
+        <SetVariable name="C1">1</SetVariable>
+        <SetVariable name="C2">2</SetVariable>
+        <SetVariable name="C3">3</SetVariable>
+        <SetVariable name="C4">4</SetVariable>
+        <SetVariable name="ShowKey">[TerminalWide],hotcue_count</SetVariable>
+        <SetVariable name="ShowWhen">2</SetVariable>
+      </Template>
+
+      <Template src="skin:templates/hotcue_row.xml">
+        <SetVariable name="C1">5</SetVariable>
+        <SetVariable name="C2">6</SetVariable>
+        <SetVariable name="C3">7</SetVariable>
+        <SetVariable name="C4">8</SetVariable>
+        <SetVariable name="ShowKey">[TerminalWide],hotcue_count</SetVariable>
+        <SetVariable name="ShowWhen">2</SetVariable>
+      </Template>
 
       <!-- Loop and beatjump share a row. Each is its length plus only the
            control the length does not already imply: for the loop that is one
