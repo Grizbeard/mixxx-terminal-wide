@@ -41,6 +41,15 @@ do not want and the rest still apply.
 | 0009 delete a chain preset from its unit | the fx page can save presets but not remove one |
 | 0010 `WKey` honours the skin's alignment | the deck's key reads centred instead of from the left |
 | 0011 gap between the key colour bar and the key text | the bar and the first glyph butt together |
+| 0012 wet-only effect units (send/return) | **no post-fader effects**: every unit on the fx page reads *pre-fader*, and the DJM-T1_Custom mapping leaves units 1 and 2 as ordinary units and says so in the log |
 
-Only 0007 costs a feature. The rest are cosmetic, and the skin is built to
+0007 and 0012 cost features. The rest are cosmetic, and the skin is built to
 degrade quietly without them.
+
+0012 is not cosmetic in the other direction either: it changes the audio engine.
+It adds `[EffectRack1_EffectUnitN],wet_only`, which makes a unit output only what
+its effects produce, with its mix knob as the send level into them, and silence
+when it is off or empty. That is what lets a unit on a crossfader bus be an
+effects return that Mixxx's main output sends past a hardware mixer's channel
+faders. It carries its own unit test (`engineeffectchain_wetonly_test`) and was
+checked against `appliance/integration` as well as this series.
