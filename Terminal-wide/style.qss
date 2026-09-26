@@ -36,6 +36,7 @@ WEffectChainPresetSelector QAbstractItemView,
 WEffectChainPresetButton,
 WEffectChainPresetButton QMenu,
 QMenu,
+QMenu QCheckBox,
 QToolTip {
   font-family: "Cascadia Mono", "Consolas", "DejaVu Sans Mono", "Menlo", monospace;
   font-weight: normal;
@@ -457,12 +458,26 @@ WCueMenuPopup, WCueMenuPopup QLabel, WCueMenuPopup QLineEdit,
 WLibrarySidebar QMenu,
 WTrackTableViewHeader QMenu,
 WSearchLineEdit QMenu,
+QMenu QCheckBox,
 QToolTip {
   font-size: 18px;
 }
 
 QMenu::item {
   padding: 10px 18px;
+}
+
+/* The checkbox rows (show/hide columns, add to crate or playlist) are widgets,
+   not menu items, so QMenu::item does not reach them: give them the same
+   finger-height row. */
+QMenu QCheckBox {
+  padding: 6px 18px 6px 10px;
+  spacing: 10px;
+}
+
+QMenu QCheckBox::indicator {
+  width: 14px;
+  height: 14px;
 }
 
 /************** options page *************************************************/

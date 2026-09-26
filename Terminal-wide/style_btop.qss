@@ -810,6 +810,42 @@ QMenu::separator {
   margin: 2px 0px;
 }
 
+/* Some menus are rows of real checkboxes rather than menu items: the library
+   header's show/hide-columns menu, and the crate and playlist submenus of the
+   track menu. A stylesheet does not hand its colour down to child widgets, so
+   without these they draw in the platform's default ink - near-black, on this
+   black menu. The indicator in the skin's own terms: an empty box, filled with
+   the accent when on. */
+QMenu QCheckBox {
+  background-color: transparent;
+  color: #b7c7ad;
+}
+
+QMenu QCheckBox:hover, QMenu QCheckBox:focus {
+  background-color: #323d2b;
+  color: #ddf0d1;
+  outline: none;
+}
+
+QMenu QCheckBox:disabled {
+  color: #6c7566;
+}
+
+QMenu QCheckBox::indicator {
+  background-color: #000000;
+  border: 1px solid #596154;
+}
+
+QMenu QCheckBox::indicator:checked {
+  background-color: #93d64a;
+  border-color: #93d64a;
+}
+
+QMenu QCheckBox::indicator:indeterminate {
+  background-color: #446322;
+  border-color: #93d64a;
+}
+
 QToolTip {
   background-color: #000000;
   border: 1px solid #93d64a;
