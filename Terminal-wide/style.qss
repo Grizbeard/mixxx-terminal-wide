@@ -267,15 +267,6 @@ QToolTip {
   padding: 4px 8px;
 }
 
-/* Pre- or post-fader: a caption on the unit, not a control, so it takes the
-   size of the knob captions. */
-#FxFaderPost,
-#FxFaderPre {
-  font-size: 15px;
-  text-transform: lowercase;
-  qproperty-alignment: 'AlignCenter';
-}
-
 #FxRouteLabel {
   font-size: 16px;
   text-transform: lowercase;

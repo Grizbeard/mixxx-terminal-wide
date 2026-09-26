@@ -6,23 +6,13 @@
     by side, one column each.
 
     Routing is a pair of buttons rather than a fixed wiring, so a unit can be
-    put on the other deck or on both mid-set. Units 1 and 3 start on deck 1 and
-    units 2 and 4 on deck 2, seeded in the config rather than asserted by the
-    skin.
+    put on the other deck or on both mid-set. Units 1 and 2 start on deck 1 and
+    units 3 and 4 on deck 2, seeded in the config rather than asserted by the
+    skin (the DJM-T1_Custom mapping asserts it, since its FX sections are wired
+    one to each deck).
 
     The header also carries the unit's chain preset - saved and recalled as a
     whole, all three slots at once.
-
-    A unit is either an insert or a return, and the header shows which. An
-    insert (pre-fader: its output goes through the mixer's channel fader) has
-    dry/wet, mix mode and deck routing. A return (post-fader: wet_only, fed from
-    a crossfader bus and sent out past the faders) has none of those - its mix
-    knob is the send level, which the DJM-T1_Custom mapping drives from the
-    channel fader, and its routing is fixed. Both sets are laid out and each
-    shows itself by [EffectRack1_EffectUnitN],wet_only, so the page says what
-    the engine is doing rather than what the unit number suggests. On a Mixxx
-    without the wet-only patch that control does not exist, the skin creates it
-    at 0, and every unit reads pre-fader - which there is true.
 
   Variables:
     FxUnit: 1 to 4
@@ -71,26 +61,6 @@
             </Children>
           </WidgetGroup>
 
-          <Label>
-            <ObjectName>FxFaderPost</ObjectName>
-            <TooltipId>EffectUnit_mix</TooltipId>
-            <Size>112f,42f</Size>
-            <Text>post-fader</Text>
-            <Connection>
-              <ConfigKey><Variable name="FxUnitGroup"/>,wet_only</ConfigKey>
-              <BindProperty>visible</BindProperty>
-            </Connection>
-          </Label>
-          <Label>
-            <ObjectName>FxFaderPre</ObjectName>
-            <Size>112f,42f</Size>
-            <Text>pre-fader</Text>
-            <Connection>
-              <ConfigKey><Variable name="FxUnitGroup"/>,wet_only</ConfigKey>
-              <Transform><Not/></Transform>
-              <BindProperty>visible</BindProperty>
-            </Connection>
-          </Label>
           <PushButton>
             <ObjectName>FxUnitEnable</ObjectName>
             <TooltipId>EffectUnit_enabled</TooltipId>
@@ -114,53 +84,15 @@
               <ConfigKey><Variable name="FxUnitGroup"/>,mix_mode</ConfigKey>
               <ButtonState>LeftButton</ButtonState>
             </Connection>
-            <Connection>
-              <ConfigKey><Variable name="FxUnitGroup"/>,wet_only</ConfigKey>
-              <Transform><Not/></Transform>
-              <BindProperty>visible</BindProperty>
-            </Connection>
           </PushButton>
 
-          <!-- One control, two meanings. For an insert the mix knob is
-               dry/wet; for a return it is the send level into the effects,
-               and the channel fader is what normally moves it. -->
-          <WidgetGroup>
-            <ObjectName>FxMixBox</ObjectName>
-            <Layout>horizontal</Layout>
-            <Size>84f,64f</Size>
-            <Children>
-              <Template src="skin:templates/fx_knob.xml">
-                <SetVariable name="ObjectName">FxMixKnob</SetVariable>
-                <SetVariable name="TooltipId">EffectUnit_mix</SetVariable>
-                <SetVariable name="Caption">dry/wet</SetVariable>
-                <SetVariable name="ArcColor"><Variable name="ArcColorFxMix"/></SetVariable>
-                <SetVariable name="ConfigKey"><Variable name="FxUnitGroup"/>,mix</SetVariable>
-              </Template>
-            </Children>
-            <Connection>
-              <ConfigKey><Variable name="FxUnitGroup"/>,wet_only</ConfigKey>
-              <Transform><Not/></Transform>
-              <BindProperty>visible</BindProperty>
-            </Connection>
-          </WidgetGroup>
-          <WidgetGroup>
-            <ObjectName>FxMixBox</ObjectName>
-            <Layout>horizontal</Layout>
-            <Size>84f,64f</Size>
-            <Children>
-              <Template src="skin:templates/fx_knob.xml">
-                <SetVariable name="ObjectName">FxMixKnob</SetVariable>
-                <SetVariable name="TooltipId">EffectUnit_mix</SetVariable>
-                <SetVariable name="Caption">send</SetVariable>
-                <SetVariable name="ArcColor"><Variable name="ArcColorFxMix"/></SetVariable>
-                <SetVariable name="ConfigKey"><Variable name="FxUnitGroup"/>,mix</SetVariable>
-              </Template>
-            </Children>
-            <Connection>
-              <ConfigKey><Variable name="FxUnitGroup"/>,wet_only</ConfigKey>
-              <BindProperty>visible</BindProperty>
-            </Connection>
-          </WidgetGroup>
+          <Template src="skin:templates/fx_knob.xml">
+            <SetVariable name="ObjectName">FxMixKnob</SetVariable>
+            <SetVariable name="TooltipId">EffectUnit_mix</SetVariable>
+            <SetVariable name="Caption">dry/wet</SetVariable>
+            <SetVariable name="ArcColor"><Variable name="ArcColorFxMix"/></SetVariable>
+            <SetVariable name="ConfigKey"><Variable name="FxUnitGroup"/>,mix</SetVariable>
+          </Template>
           <Template src="skin:templates/fx_knob.xml">
             <SetVariable name="ObjectName">FxSuperKnob</SetVariable>
             <SetVariable name="TooltipId">EffectUnit_super1</SetVariable>
@@ -230,52 +162,6 @@
                 </Connection>
               </PushButton>
             </Children>
-            <Connection>
-              <ConfigKey><Variable name="FxUnitGroup"/>,wet_only</ConfigKey>
-              <Transform><Not/></Transform>
-              <BindProperty>visible</BindProperty>
-            </Connection>
-          </WidgetGroup>
-          <!-- A return's routing, read-only. Its input is a crossfader bus,
-               and a bus holding one deck is that deck: bus L is deck 1 and bus
-               R deck 2 with the orientations the mapping sets. The buttons do
-               not write, because unrouting a return does not silence it - the
-               bus would reach the main output dry, a second copy of that deck
-               on the master. -->
-          <WidgetGroup>
-            <ObjectName>FxRouteBox</ObjectName>
-            <Layout>horizontal</Layout>
-            <Size>124f,42f</Size>
-            <Children>
-              <PushButton>
-                <ObjectName>FxRouteButton</ObjectName>
-                <TooltipId>EffectUnit_deck_enabled</TooltipId>
-                <Size>62f,42f</Size>
-                <NumberStates>2</NumberStates>
-                <State><Number>0</Number><Text>1</Text></State>
-                <State><Number>1</Number><Text>1</Text></State>
-                <Connection>
-                  <ConfigKey><Variable name="FxUnitGroup"/>,group_[BusLeft]_enable</ConfigKey>
-                  <ConnectValueFromWidget>false</ConnectValueFromWidget>
-                </Connection>
-              </PushButton>
-              <PushButton>
-                <ObjectName>FxRouteButton</ObjectName>
-                <TooltipId>EffectUnit_deck_enabled</TooltipId>
-                <Size>62f,42f</Size>
-                <NumberStates>2</NumberStates>
-                <State><Number>0</Number><Text>2</Text></State>
-                <State><Number>1</Number><Text>2</Text></State>
-                <Connection>
-                  <ConfigKey><Variable name="FxUnitGroup"/>,group_[BusRight]_enable</ConfigKey>
-                  <ConnectValueFromWidget>false</ConnectValueFromWidget>
-                </Connection>
-              </PushButton>
-            </Children>
-            <Connection>
-              <ConfigKey><Variable name="FxUnitGroup"/>,wet_only</ConfigKey>
-              <BindProperty>visible</BindProperty>
-            </Connection>
           </WidgetGroup>
         </Children>
       </WidgetGroup>

@@ -92,11 +92,11 @@ $hideMenuBar = if ($ShowMenuBar) { "0" } else { "1" }
 # value on every launch overrides whatever the operator chose, every time. As
 # seeds they are defaults; as skin attributes they would be overrides.
 #
-#   effect routing                      units 1 and 3 on deck 1, 2 and 4 on deck 2
+#   effect routing                      units 1 and 2 on deck 1, 3 and 4 on deck 2
 $seeds = @{
     '[EffectRack1_EffectUnit1]' = @{ 'group_[Channel1]_enable' = '1'; 'group_[Channel2]_enable' = '0' }
-    '[EffectRack1_EffectUnit2]' = @{ 'group_[Channel1]_enable' = '0'; 'group_[Channel2]_enable' = '1' }
-    '[EffectRack1_EffectUnit3]' = @{ 'group_[Channel1]_enable' = '1'; 'group_[Channel2]_enable' = '0' }
+    '[EffectRack1_EffectUnit2]' = @{ 'group_[Channel1]_enable' = '1'; 'group_[Channel2]_enable' = '0' }
+    '[EffectRack1_EffectUnit3]' = @{ 'group_[Channel1]_enable' = '0'; 'group_[Channel2]_enable' = '1' }
     '[EffectRack1_EffectUnit4]' = @{ 'group_[Channel1]_enable' = '0'; 'group_[Channel2]_enable' = '1' }
 }
 
@@ -158,11 +158,11 @@ WaveformType 12
 group_[Channel1]_enable 1
 group_[Channel2]_enable 0
 [EffectRack1_EffectUnit2]
-group_[Channel1]_enable 0
-group_[Channel2]_enable 1
-[EffectRack1_EffectUnit3]
 group_[Channel1]_enable 1
 group_[Channel2]_enable 0
+[EffectRack1_EffectUnit3]
+group_[Channel1]_enable 0
+group_[Channel2]_enable 1
 [EffectRack1_EffectUnit4]
 group_[Channel1]_enable 0
 group_[Channel2]_enable 1

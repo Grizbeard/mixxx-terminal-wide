@@ -92,22 +92,6 @@
   background: transparent;
 }
 
-/* Where the unit sits against the channel fader. A return is the unusual
-   case, and the one whose knobs mean something different, so it takes the fx
-   hue; an insert is the ordinary case and reads as a caption. */
-#FxFaderPost,
-#FxFaderPre {
-  background: transparent;
-}
-
-#FxFaderPost {
-  color: #ea3c96;
-}
-
-#FxFaderPre {
-  color: #929e8a;
-}
-
 /* The unit's own on switch is the loudest thing on the page: with it off
    nothing else on the panel does anything. */
 #Mixxx WPushButton#FxUnitEnable[displayValue="1"] {
@@ -134,7 +118,6 @@
   color: #000000;
 }
 
-#FxMixBox,
 #FxRouteBox,
 #FxSlots,
 #FxSlotColumn,
