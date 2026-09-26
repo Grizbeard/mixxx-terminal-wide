@@ -58,19 +58,23 @@ own; the artist row it replaced was worth more as title size.
 
 ## Defaults vs overrides
 
-**The skin sets no preference on your behalf.** It used to: the time display and
-the effect routing were `persist="false"` attributes, which is the only form of
-skin attribute that reliably reaches a control Mixxx has already created — and
-which therefore re-asserts itself on *every* launch, undoing whatever the
-operator last chose. Routing you changed with the fx page's route buttons came
-back wrong after a restart, and so did the time display.
+**The skin sets one preference on your behalf: the deck's time is always time
+remaining.** That is a `persist="false"` attribute on
+`[Controls],ShowDurationRemaining`, the only form of skin attribute that
+reliably reaches a control Mixxx has already created, and so it re-asserts
+itself on *every* launch. That is the intent here: the time field is sized for
+remaining ("elapsed and remaining" overflows it), and Preferences > Decks >
+Track time display, which is the same control, follows it. The deck also stacks
+an empty group over the time so a tap cannot cycle the mode.
 
-Those are seeded into `mixxx.cfg` instead, and only where the config has nothing
-to say yet, so they are defaults rather than overrides:
+Nothing else is forced. The effect routing used to be a `persist="false"`
+attribute too, and routing you changed with the fx page's route buttons came
+back wrong after a restart. It is seeded into `mixxx.cfg` instead, and only
+where the config has nothing to say yet, so it is a default rather than an
+override:
 
 | Key | Seeded | Why |
 |---|---|---|
-| `[Controls] PositionDisplay` | 1 (remaining) | the deck's time field is sized for seven cells; "both" overflows it |
 | `[EffectRack1_EffectUnit1] group_[Channel1]_enable` | 1 | unit 1 on deck 1 |
 | `[EffectRack1_EffectUnit2] group_[Channel2]_enable` | 1 | unit 2 on deck 2 |
 | `[EffectRack1_EffectUnit3] group_[Channel1]_enable` | 1 | unit 3 on deck 1 |

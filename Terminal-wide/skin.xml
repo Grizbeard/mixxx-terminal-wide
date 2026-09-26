@@ -63,13 +63,13 @@
            stack, 0..3 for units 1..4. -->
       <attribute persist="true" config_key="[TerminalWide],fx_unit">0</attribute>
 
-      <!-- Time display is NOT set here. It wants to be "remaining" - the deck's
-           time field is sized for seven cells, and "both" overflows it - but a
-           skin attribute can only get that by re-asserting it on every launch,
-           which means overriding whatever the operator picked in Preferences,
-           every time. Seeding [Controls],PositionDisplay in the config once
-           instead leaves the preference a preference; see
-           scripts/preview-terminal-wide.ps1, which does exactly that. -->
+      <!-- The deck's time is always time remaining: the number read mid-set,
+           and the one the field is sized for ("elapsed and remaining"
+           overflows it). Not persisted, so it is re-asserted at every skin
+           load. That overrides Preferences > Decks > Track time display, which
+           is this same control and follows it. deck.xml also stops a tap on
+           the time from cycling the mode. -->
+      <attribute config_key="[Controls],ShowDurationRemaining">1</attribute>
 
       <!-- Deck rows the options page can show or hide. hotcue_count is
            0 none, 1 four, 2 eight. Beatjump is off by default: with turntables

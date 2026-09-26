@@ -163,13 +163,28 @@
         <Layout>horizontal</Layout>
         <Size>0me,74f</Size>
         <Children>
-          <NumberPos>
-            <ObjectName>DeckTime</ObjectName>
-            <TooltipId>track_time</TooltipId>
+          <!-- Time remaining, and only that (skin.xml sets the mode). A click
+               on a NumberPos cycles elapsed / remaining / both, and on a
+               touchscreen that is a stray thumb away, so an empty group is
+               stacked on top of it to take the press. A stacked layout puts
+               its first child on top. -->
+          <WidgetGroup>
+            <ObjectName>DeckTimeBox</ObjectName>
+            <Layout>stacked</Layout>
             <Size>0me,70f</Size>
-            <NumberOfDigits>6</NumberOfDigits>
-            <Channel><Variable name="ChanNum"/></Channel>
-          </NumberPos>
+            <Children>
+              <WidgetGroup>
+                <Tooltip>Time remaining in the track</Tooltip>
+                <Size>0me,0me</Size>
+              </WidgetGroup>
+              <NumberPos>
+                <ObjectName>DeckTime</ObjectName>
+                <Size>0me,0me</Size>
+                <NumberOfDigits>6</NumberOfDigits>
+                <Channel><Variable name="ChanNum"/></Channel>
+              </NumberPos>
+            </Children>
+          </WidgetGroup>
           <!-- The bpm block, boxed and in reverse video. It is the one number
                on the deck that decides what you do in the next few seconds, so
                it gets the treatment this skin otherwise reserves for an engaged
