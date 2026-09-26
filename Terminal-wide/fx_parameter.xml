@@ -21,8 +21,11 @@
     <ObjectName>FxKnobBox</ObjectName>
     <Layout>vertical</Layout>
     <SizePolicy>me,min</SizePolicy>
-    <MinimumSize>52,62</MinimumSize>
-    <MaximumSize>74,</MaximumSize>
+    <!-- A fixed width, so the rows of four in fx_slot.xml line up as a grid:
+         a row with two parameters would otherwise spread them wider than a
+         row with four. Four of these fill a third of the panel. -->
+    <MinimumSize>150,62</MinimumSize>
+    <MaximumSize>150,</MaximumSize>
     <Children>
       <EffectParameterKnobComposed>
         <ObjectName>FxParamKnob</ObjectName>

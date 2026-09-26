@@ -1,0 +1,42 @@
+<!DOCTYPE template>
+<!--
+  Description:
+    One button of the fx page's unit picker: fx 1 to fx 4.
+
+    A radio button, which Mixxx has no widget for, so it is two connections on
+    a push button. The press goes to the unit's page trigger in fx.xml's stack,
+    [TerminalWide],fx_unit<n>: down shows that page, and the release that drops
+    the trigger back to 0 is caught by the page's on_hide_select pointing at
+    itself, so the page stays. The light comes from somewhere else entirely -
+    the stack's page index, [TerminalWide],fx_unit, compared against this
+    button's page - because the trigger is 0 again the moment the finger lifts.
+
+    The plain trigger pattern the page tabs use, a latching button on the
+    trigger, does not work with more than two pages: tapping the lit one
+    unlatches it, and WWidgetStack::hideIndex then moves on to the *next* page.
+    With four units that turned "tap fx 2" into "show fx 3".
+
+  Variables:
+    FxUnit: 1 to 4
+    FxPage: the unit's page index in fx.xml's stack, FxUnit - 1
+-->
+<Template>
+  <PushButton>
+    <ObjectName>FxUnitTab</ObjectName>
+    <Size>76f,42f</Size>
+    <NumberStates>2</NumberStates>
+    <LeftClickIsPushButton>true</LeftClickIsPushButton>
+    <State><Number>0</Number><Text>fx <Variable name="FxUnit"/></Text></State>
+    <State><Number>1</Number><Text>fx <Variable name="FxUnit"/></Text></State>
+    <Connection>
+      <ConfigKey>[TerminalWide],fx_unit<Variable name="FxUnit"/></ConfigKey>
+      <ButtonState>LeftButton</ButtonState>
+      <ConnectValueToWidget>false</ConnectValueToWidget>
+    </Connection>
+    <Connection>
+      <ConfigKey>[TerminalWide],fx_unit</ConfigKey>
+      <Transform><IsEqual><Variable name="FxPage"/></IsEqual></Transform>
+      <ConnectValueFromWidget>false</ConnectValueFromWidget>
+    </Connection>
+  </PushButton>
+</Template>

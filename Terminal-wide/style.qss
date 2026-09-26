@@ -266,11 +266,13 @@ QToolTip {
   padding: 4px 8px;
 }
 
-#FxUnitLabel {
-  font-size: 23px;
-  font-weight: bold;
+/* Pre- or post-fader: a caption on the unit, not a control, so it takes the
+   size of the knob captions. */
+#FxFaderPost,
+#FxFaderPre {
+  font-size: 15px;
   text-transform: lowercase;
-  qproperty-alignment: 'AlignLeft | AlignVCenter';
+  qproperty-alignment: 'AlignCenter';
 }
 
 #FxRouteLabel {
@@ -341,10 +343,6 @@ QToolTip {
   font-size: 15px;
   text-transform: lowercase;
   qproperty-alignment: 'AlignHCenter | AlignTop';
-}
-
-#FxSlotRow {
-  margin-top: 4px;
 }
 
 #FxSlotParams WPushButton {

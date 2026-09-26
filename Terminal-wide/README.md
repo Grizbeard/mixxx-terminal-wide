@@ -73,10 +73,15 @@ to say yet, so they are defaults rather than overrides:
 | `[Controls] PositionDisplay` | 1 (remaining) | the deck's time field is sized for seven cells; "both" overflows it |
 | `[EffectRack1_EffectUnit1] group_[Channel1]_enable` | 1 | unit 1 on deck 1 |
 | `[EffectRack1_EffectUnit2] group_[Channel2]_enable` | 1 | unit 2 on deck 2 |
+| `[EffectRack1_EffectUnit3] group_[Channel1]_enable` | 1 | unit 3 on deck 1 |
+| `[EffectRack1_EffectUnit4] group_[Channel2]_enable` | 1 | unit 4 on deck 2 |
 
 [`scripts/preview-terminal-wide.ps1`](../scripts/preview-terminal-wide.ps1)
 does the seeding for the preview; appliance provisioning should ship the same
-values in its `mixxx.cfg`.
+values in its `mixxx.cfg`. On the appliance, units 1 and 2 are the exception:
+with patch 0012 the DJM-T1_Custom mapping makes them post-fader returns at every
+start - wet-only, off the decks and on the left and right crossfader buses - so
+their deck routing is not a default there but something the mapping asserts.
 
 The skin's own options — everything on the options page — are `[TerminalWide]`
 and `[Skin]` controls declared `persist="true"`, which Mixxx writes back to the
@@ -103,15 +108,40 @@ onto the timecode.
 Browsing is the dominant touch interaction here, so it gets the whole panel
 rather than a strip.
 
-**fx** — both effect units, side by side, with everything each one has:
-routing, the unit enable, mix mode, dry/wet and super knobs, a chain preset
-selector and its menu, and three slots each with its own enable, effect
-selector, meta knob and parameters.
+**fx** — one effect unit at a time, with everything it has. An `fx 1` –
+`fx 4` picker at the left of the header chooses the unit; the rest of the
+header is that unit's enable, mix mode, dry/wet and super knobs, chain preset
+selector and its menu, and routing. Under it the unit's three slots stand side
+by side as equal columns, each with its enable, effect selector and meta knob
+on top and every parameter of the loaded effect below, four to a row.
+
+Each unit is labelled **pre-fader** or **post-fader** beside the picker. A
+pre-fader unit is an ordinary insert on a deck: its output goes through the
+mixer's channel fader, so the fader cuts its tail. A post-fader unit is a
+wet-only return (patch 0012) fed from a crossfader bus, whose output leaves on
+Mixxx's main output and reaches the master past the faders. The page reads the
+label from `[EffectRack1_EffectUnitN],wet_only` rather than from the unit
+number, and swaps the header to match: a return has no mix mode, its mix knob is
+captioned *send* (the DJM-T1_Custom mapping drives it from the channel fader),
+and its routing is shown but cannot be tapped, because unrouting a return would
+put that deck on the master a second time, dry. Without patch 0012 the control
+does not exist and every unit reads pre-fader, which is then true.
+
+The picker is a WidgetStack whose four pages are the four units, persisted as
+`[TerminalWide],fx_unit`, so the page comes back on whichever unit you left it
+at. Its buttons behave as radio buttons, which Mixxx has no widget for; how
+that is done, and why the page tabs' simpler trigger pattern turns "tap fx 2"
+into "show fx 3" once there are more than two pages, is in
+[`templates/fx_unit_tab.xml`](templates/fx_unit_tab.xml). The DJM-T1_Custom
+mapping puts FX1 and FX2's ON buttons and DRY/WET knobs on units 3 and 4, and
+its per-effect knobs and buttons on units 1 and 2, so all four are in use.
 
 Effects were tried first as narrow columns flanking the decks. The columns had
 room for the three selectors and nothing else, so they became a page — where
-nothing competes with the decks for the 480 rows the panel has. Unit 1 on deck
-1 and unit 2 on deck 2 is the appliance's default, seeded into a fresh config
+nothing competes with the decks for the 480 rows the panel has. Two units side
+by side then fitted each slot's parameters only as one long row; one unit across
+the whole width is what gives each slot a column. Units 1 and 3 on deck 1 and
+units 2 and 4 on deck 2 is the appliance's default, seeded into a fresh config
 by `scripts/preview-terminal-wide.ps1` rather than asserted by the skin: a skin
 attribute that sets a value every launch is not a default, it is an override of
 whatever the operator last chose. The route buttons change it live.

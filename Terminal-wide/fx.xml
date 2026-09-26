@@ -1,12 +1,18 @@
 <!DOCTYPE template>
 <!--
   Description:
-    The effects page: both units side by side, each with everything it has.
+    The effects page: one unit at a time, with everything it has.
 
-    Effects used to be two narrow columns flanking the decks, which had room
-    for the selectors and nothing else. A page of their own fits the routing,
-    the unit controls, the three slots and their parameters - and none of it
-    competes with the decks for the 480 rows the panel has.
+    Two units side by side had room for each slot's parameters only as one long
+    row. One unit across the whole width gives each of its three slots a column
+    of its own, with its selector at the top and every parameter the loaded
+    effect has underneath.
+
+    Which unit is showing is a WidgetStack page, picked by the fx 1 - fx 4
+    buttons at the left of the unit's header (templates/fx_unit_tab.xml, which
+    also explains the on_hide_select below: each page names itself, so the
+    picker's push-button release leaves the page where it is). The page index
+    persists, so the page comes back on whichever unit it was left at.
 -->
 <Template>
   <WidgetGroup>
@@ -20,19 +26,24 @@
         <SizePolicy>me,max</SizePolicy>
       </SingletonContainer>
 
-      <WidgetGroup>
+      <WidgetStack currentpage="[TerminalWide],fx_unit" persist="true">
         <ObjectName>FxBody</ObjectName>
-        <Layout>horizontal</Layout>
         <SizePolicy>me,me</SizePolicy>
         <Children>
-          <Template src="skin:fx_unit.xml">
+          <Template src="skin:fx_unit.xml" trigger="[TerminalWide],fx_unit1" on_hide_select="0">
             <SetVariable name="FxUnit">1</SetVariable>
           </Template>
-          <Template src="skin:fx_unit.xml">
+          <Template src="skin:fx_unit.xml" trigger="[TerminalWide],fx_unit2" on_hide_select="1">
             <SetVariable name="FxUnit">2</SetVariable>
           </Template>
+          <Template src="skin:fx_unit.xml" trigger="[TerminalWide],fx_unit3" on_hide_select="2">
+            <SetVariable name="FxUnit">3</SetVariable>
+          </Template>
+          <Template src="skin:fx_unit.xml" trigger="[TerminalWide],fx_unit4" on_hide_select="3">
+            <SetVariable name="FxUnit">4</SetVariable>
+          </Template>
         </Children>
-      </WidgetGroup>
+      </WidgetStack>
 
     </Children>
   </WidgetGroup>

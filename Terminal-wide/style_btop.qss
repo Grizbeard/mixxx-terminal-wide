@@ -69,15 +69,43 @@
   border: 1px solid #3b4037;
 }
 
-#FxUnitLabel {
-  color: #ea3c96;
+/* The unit picker is navigation, like the page tabs, so it looks like them:
+   the unit being edited lit in the selection colour, the other one dim. It is
+   deliberately not the fx hue - that is the unit's on switch, beside it. */
+#FxUnitTabs {
   background: transparent;
+}
+
+#Mixxx WPushButton#FxUnitTab[displayValue="1"] {
+  background-color: #323d2b;
+  color: #ddf0d1;
+}
+
+#Mixxx WPushButton#FxUnitTab[displayValue="0"] {
+  background-color: #181a16;
+  color: #929e8a;
 }
 
 #FxRouteLabel,
 #FxKnobLabel {
   color: #929e8a;
   background: transparent;
+}
+
+/* Where the unit sits against the channel fader. A return is the unusual
+   case, and the one whose knobs mean something different, so it takes the fx
+   hue; an insert is the ordinary case and reads as a caption. */
+#FxFaderPost,
+#FxFaderPre {
+  background: transparent;
+}
+
+#FxFaderPost {
+  color: #ea3c96;
+}
+
+#FxFaderPre {
+  color: #929e8a;
 }
 
 /* The unit's own on switch is the loudest thing on the page: with it off
@@ -106,7 +134,11 @@
   color: #000000;
 }
 
-#FxSlotRow,
+#FxMixBox,
+#FxRouteBox,
+#FxSlots,
+#FxSlotColumn,
+#FxSlotFiller,
 #FxSlotHeadRow,
 #FxSlotParams,
 #FxKnobBox,
@@ -114,6 +146,12 @@
 #FxParamFiller,
 #FxMetaBox {
   background-color: #000000;
+}
+
+/* A rule between the three slot columns, so a parameter reads as belonging
+   to the selector above it and not to the column beside it. */
+#FxSlotColumn {
+  border-left: 1px solid #3b4037;
 }
 
 /* Routing is a statement about a deck, so it takes that deck's waveform

@@ -1,21 +1,27 @@
 <!DOCTYPE template>
 <!--
   Description:
-    One effect slot: its on switch, which effect is loaded, its meta knob, and
-    every parameter the loaded effect has.
+    One effect slot as a column: its on switch, which effect is loaded and its
+    meta knob across the top, and under them every parameter the loaded effect
+    has.
 
-    Two rows, because one will not hold it. An effect can declare up to eight
-    knob parameters and eight button parameters, and which of those exist is a
-    property of the effect, not of the skin. All sixteen are laid out and each
-    hides itself unless the loaded effect has it, so what you see is whatever
-    that effect actually has - knobs where it wants an amount, switches where
-    it wants a choice.
+    An effect can declare up to eight knob parameters and eight button
+    parameters, and which of those exist is a property of the effect, not of the
+    skin. All sixteen are laid out, four to a row, and each hides itself unless
+    the loaded effect has it, so what you see is whatever that effect actually
+    has - knobs where it wants an amount, switches where it wants a choice. A
+    row whose four are all absent has nothing to size itself by and folds to
+    nothing, so an effect with three knobs and no switches is one row tall.
 
-    Buttons come before knobs, as they do in Terminal: a switch changes what the
-    knobs beside it mean, so it reads first.
+    Four to a row rather than all eight: a column is a third of the panel, and
+    four fills it with room for each parameter's name, where eight would elide
+    every one of them.
+
+    Switches come before knobs, as they do in Terminal: a switch changes what
+    the knobs under it mean, so it reads first.
 
   Variables:
-    FxUnit: 1 or 2
+    FxUnit: 1 to 4
     FxNum:  1, 2 or 3
 -->
 <Template>
@@ -23,9 +29,10 @@
   <SetVariable name="FxSlotGroup">[EffectRack1_EffectUnit<Variable name="FxUnit"/>_Effect<Variable name="FxNum"/>]</SetVariable>
 
   <WidgetGroup>
-    <ObjectName>FxSlotRow</ObjectName>
+    <ObjectName>FxSlotColumn</ObjectName>
     <Layout>vertical</Layout>
-    <SizePolicy>me,min</SizePolicy>
+    <!-- Ignored across: fx_unit.xml splits the row three ways by this. -->
+    <SizePolicy>i,me</SizePolicy>
     <Children>
 
       <WidgetGroup>
@@ -84,7 +91,7 @@
       <WidgetGroup>
         <ObjectName>FxSlotParams</ObjectName>
         <Layout>horizontal</Layout>
-        <SizePolicy>me,min</SizePolicy>
+        <SizePolicy>me,max</SizePolicy>
         <Children>
           <Template src="skin:fx_parameter_button.xml">
             <SetVariable name="FxParameter">1</SetVariable>
@@ -98,6 +105,20 @@
           <Template src="skin:fx_parameter_button.xml">
             <SetVariable name="FxParameter">4</SetVariable>
           </Template>
+          <WidgetGroup>
+            <ObjectName>FxParamFiller</ObjectName>
+            <Layout>horizontal</Layout>
+            <SizePolicy>me,min</SizePolicy>
+            <Children/>
+          </WidgetGroup>
+        </Children>
+      </WidgetGroup>
+
+      <WidgetGroup>
+        <ObjectName>FxSlotParams</ObjectName>
+        <Layout>horizontal</Layout>
+        <SizePolicy>me,max</SizePolicy>
+        <Children>
           <Template src="skin:fx_parameter_button.xml">
             <SetVariable name="FxParameter">5</SetVariable>
           </Template>
@@ -110,6 +131,20 @@
           <Template src="skin:fx_parameter_button.xml">
             <SetVariable name="FxParameter">8</SetVariable>
           </Template>
+          <WidgetGroup>
+            <ObjectName>FxParamFiller</ObjectName>
+            <Layout>horizontal</Layout>
+            <SizePolicy>me,min</SizePolicy>
+            <Children/>
+          </WidgetGroup>
+        </Children>
+      </WidgetGroup>
+
+      <WidgetGroup>
+        <ObjectName>FxSlotParams</ObjectName>
+        <Layout>horizontal</Layout>
+        <SizePolicy>me,max</SizePolicy>
+        <Children>
           <Template src="skin:fx_parameter.xml">
             <SetVariable name="FxParameter">1</SetVariable>
           </Template>
@@ -122,6 +157,20 @@
           <Template src="skin:fx_parameter.xml">
             <SetVariable name="FxParameter">4</SetVariable>
           </Template>
+          <WidgetGroup>
+            <ObjectName>FxParamFiller</ObjectName>
+            <Layout>horizontal</Layout>
+            <SizePolicy>me,min</SizePolicy>
+            <Children/>
+          </WidgetGroup>
+        </Children>
+      </WidgetGroup>
+
+      <WidgetGroup>
+        <ObjectName>FxSlotParams</ObjectName>
+        <Layout>horizontal</Layout>
+        <SizePolicy>me,max</SizePolicy>
+        <Children>
           <Template src="skin:fx_parameter.xml">
             <SetVariable name="FxParameter">5</SetVariable>
           </Template>
@@ -137,10 +186,17 @@
           <WidgetGroup>
             <ObjectName>FxParamFiller</ObjectName>
             <Layout>horizontal</Layout>
-            <SizePolicy>me,me</SizePolicy>
+            <SizePolicy>me,min</SizePolicy>
             <Children/>
           </WidgetGroup>
         </Children>
+      </WidgetGroup>
+
+      <WidgetGroup>
+        <ObjectName>FxSlotFiller</ObjectName>
+        <Layout>vertical</Layout>
+        <SizePolicy>me,me</SizePolicy>
+        <Children/>
       </WidgetGroup>
 
     </Children>

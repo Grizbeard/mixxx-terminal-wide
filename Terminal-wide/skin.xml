@@ -59,6 +59,10 @@
       <attribute persist="true" config_key="[Tab],fx">0</attribute>
       <attribute persist="true" config_key="[Tab],options">0</attribute>
 
+      <!-- Which effect unit the fx page is editing: the page index of fx.xml's
+           stack, 0..3 for units 1..4. -->
+      <attribute persist="true" config_key="[TerminalWide],fx_unit">0</attribute>
+
       <!-- Time display is NOT set here. It wants to be "remaining" - the deck's
            time field is sized for seven cells, and "both" overflows it - but a
            skin attribute can only get that by re-asserting it on every launch,
@@ -83,8 +87,8 @@
       <!-- Effect routing is NOT set here either, for the same reason: Mixxx
            persists it, and an attribute that re-asserts it every launch would
            undo the route buttons on the fx page the moment you restarted.
-           Unit 1 to deck 1 and unit 2 to deck 2 are seeded into the config
-           alongside the time display.
+           Units 1 and 3 to deck 1 and units 2 and 4 to deck 2 are seeded into
+           the config alongside the time display.
       -->
 
     </attributes>
