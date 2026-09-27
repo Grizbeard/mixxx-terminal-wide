@@ -1,0 +1,767 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Sat, 26 Sep 2026 18:00:00 -0500
+Subject: [PATCH 14/14] Give the library numbered favorites a controller can
+ store and recall
+
+[AI-generated text: this description was written autonomously by an AI
+agent (Claude). Review it before relying on it or submitting it.]
+
+A controller can walk the sidebar one row at a time, but it cannot go
+straight to a given crate, playlist or folder. On an appliance where
+visiting DJs plug in drives with Rekordbox or Serato libraries, the
+playlist a DJ wants is several levels down a tree that has to be
+scrolled with a knob, every time.
+
+LibraryFavorites adds six numbered favorites as controls:
+
+  [Library],favorite_N_store     remember the selected sidebar item
+  [Library],favorite_N_activate  select and open it again
+  [Library],favorite_N_status    read-only: 0 empty, 1 stored
+  [Library],favorite_recalls     read-only: counts successful recalls
+
+A favorite is the feature's icon name plus a key for the item: its data
+where it has any (a crate or playlist id, a folder path, the path of a
+Rekordbox or Serato playlist, which starts with the drive's mount path),
+and its label path. The data survives renames and the counts some labels
+carry; the label path tells apart items that share their data (History's
+year folders) and is the only key for items with none (the folder levels
+of nested Serato crates). Rekordbox and Serato keep a loaded/not-loaded
+flag next to the path, which changes when the item is first opened, so a
+list is keyed by its first element only.
+
+Recall searches the part of the feature's tree that is already loaded,
+selects the item, expands everything above it and opens it through the
+sidebar's own click path, so every feature behaves as it does when the
+item is clicked. An item that is not there - a drive that has been
+unplugged, or not opened since it was plugged in - is not searched for
+further and nothing happens; the recall counter does not move either, so
+a mapping can switch pages only when there is something to show.
+Favorites are kept in the config under [LibraryFavorites].
+
+LibraryControl owns the favorites and now takes the config. SidebarModel
+exposes its feature list, the feature an index belongs to, and the
+sidebar index of a tree item. WLibrarySidebar's selectedIndex() is
+public, and activateIndex() selects, expands, scrolls and clicks.
+
+libraryfavorites_test covers the keys (data, list data, label path),
+finding deep items, a label that changed, shared data told apart by
+label, items without data, a gone item, a feature root, and the text
+round trip.
+
+[End of AI-generated text.]
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ CMakeLists.txt                     |   2 +
+ src/library/library.cpp            |   2 +-
+ src/library/librarycontrol.cpp     |   7 +-
+ src/library/librarycontrol.h       |   7 +-
+ src/library/libraryfavorites.cpp   | 245 +++++++++++++++++++++++++++++
+ src/library/libraryfavorites.h     | 102 ++++++++++++
+ src/library/sidebarmodel.cpp       |  18 +++
+ src/library/sidebarmodel.h         |  10 ++
+ src/test/libraryfavorites_test.cpp | 119 ++++++++++++++
+ src/widget/wlibrarysidebar.cpp     |  12 ++
+ src/widget/wlibrarysidebar.h       |   6 +-
+ 11 files changed, 525 insertions(+), 5 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 59fbf6a5..37cca6b4 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1427,6 +1427,7 @@ add_library(
+   src/library/library_prefs.cpp
+   src/library/library.cpp
+   src/library/librarycontrol.cpp
++  src/library/libraryfavorites.cpp
+   src/library/libraryfeature.cpp
+   src/library/librarytablemodel.cpp
+   src/library/missing_hidden/dlghidden.cpp
+@@ -2941,6 +2942,7 @@ if(BUILD_TESTING)
+     src/test/keyutilstest.cpp
+     src/test/lcstest.cpp
+     src/test/learningutilstest.cpp
++    src/test/libraryfavorites_test.cpp
+     src/test/libraryscannertest.cpp
+     src/test/librarytest.cpp
+     src/test/looping_control_test.cpp
+diff --git a/src/library/library.cpp b/src/library/library.cpp
+index 36710fc9..62ded0c8 100644
+--- a/src/library/library.cpp
++++ b/src/library/library.cpp
+@@ -70,7 +70,7 @@ Library::Library(
+           m_pDbConnectionPool(std::move(pDbConnectionPool)),
+           m_pTrackCollectionManager(pTrackCollectionManager),
+           m_pSidebarModel(make_parented<SidebarModel>(this)),
+-          m_pLibraryControl(make_parented<LibraryControl>(this)),
++          m_pLibraryControl(make_parented<LibraryControl>(this, m_pConfig)),
+           m_pLibraryWidget(nullptr),
+           m_pKeyNotation(std::make_unique<ControlObject>(
+                   mixxx::library::prefs::kKeyNotationConfigKey, false)) {
+diff --git a/src/library/librarycontrol.cpp b/src/library/librarycontrol.cpp
+index 588b9179..60408961 100644
+--- a/src/library/librarycontrol.cpp
++++ b/src/library/librarycontrol.cpp
+@@ -11,6 +11,7 @@
+ #include "control/controlobject.h"
+ #include "control/controlpushbutton.h"
+ #include "library/library.h"
++#include "library/libraryfavorites.h"
+ #include "library/libraryview.h"
+ #include "mixer/playermanager.h"
+ #include "moc_librarycontrol.cpp"
+@@ -87,7 +88,7 @@ void LoadToGroupController::slotLoadToGroupAndPlay(double v) {
+     }
+ }
+ 
+-LibraryControl::LibraryControl(Library* pLibrary)
++LibraryControl::LibraryControl(Library* pLibrary, UserSettingsPointer pConfig)
+         : QObject(pLibrary),
+           m_pLibrary(pLibrary),
+           m_focusedWidget(FocusWidget::None),
+@@ -97,7 +98,8 @@ LibraryControl::LibraryControl(Library* pLibrary)
+           m_pSearchbox(nullptr),
+           m_numDecks(kAppGroup, QStringLiteral("num_decks"), this),
+           m_numSamplers(kAppGroup, QStringLiteral("num_samplers"), this),
+-          m_numPreviewDecks(kAppGroup, QStringLiteral("num_preview_decks"), this) {
++          m_numPreviewDecks(kAppGroup, QStringLiteral("num_preview_decks"), this),
++          m_pFavorites(new LibraryFavorites(std::move(pConfig), this)) {
+     qRegisterMetaType<FocusWidget>("FocusWidget");
+ 
+     slotNumDecksChanged(m_numDecks.get());
+@@ -627,6 +629,7 @@ void LibraryControl::bindSidebarWidget(WLibrarySidebar* pSidebarWidget) {
+             &WLibrarySidebar::destroyed,
+             this,
+             &LibraryControl::sidebarWidgetDeleted);
++    m_pFavorites->bindSidebarWidget(pSidebarWidget);
+ }
+ 
+ void LibraryControl::bindLibraryWidget(WLibrary* pLibraryWidget, KeyboardEventFilter* pKeyboard) {
+diff --git a/src/library/librarycontrol.h b/src/library/librarycontrol.h
+index 5d174259..82ae2512 100644
+--- a/src/library/librarycontrol.h
++++ b/src/library/librarycontrol.h
+@@ -5,6 +5,7 @@
+ 
+ #include "control/controlproxy.h"
+ #include "library/library_decl.h"
++#include "preferences/usersettings.h"
+ #ifdef __STEM__
+ #include "engine/engine.h"
+ #endif
+@@ -14,6 +15,7 @@ class ControlObject;
+ class ControlPushButton;
+ class Library;
+ class LibraryControl;
++class LibraryFavorites;
+ class WLibrary;
+ class WLibrarySidebar;
+ class WSearchLineEdit;
+@@ -52,7 +54,7 @@ class LoadToGroupController : public QObject {
+ class LibraryControl : public QObject {
+     Q_OBJECT
+   public:
+-    LibraryControl(Library* pLibrary);
++    LibraryControl(Library* pLibrary, UserSettingsPointer pConfig);
+     virtual ~LibraryControl();
+ 
+     void bindLibraryWidget(WLibrary* pLibrary, KeyboardEventFilter* pKeyboard);
+@@ -236,4 +238,7 @@ class LibraryControl : public QObject {
+     ControlProxy m_numSamplers;
+     ControlProxy m_numPreviewDecks;
+     std::map<QString, std::unique_ptr<LoadToGroupController>> m_loadToGroupControllers;
++
++    // Numbered favorites for sidebar items ([Library],favorite_N_*)
++    LibraryFavorites* m_pFavorites;
+ };
+diff --git a/src/library/libraryfavorites.cpp b/src/library/libraryfavorites.cpp
+new file mode 100644
+index 00000000..24985f32
+--- /dev/null
++++ b/src/library/libraryfavorites.cpp
+@@ -0,0 +1,245 @@
++#include "library/libraryfavorites.h"
++
++#include <QJsonArray>
++#include <QJsonDocument>
++#include <QJsonObject>
++#include <QtDebug>
++
++#include "control/controlobject.h"
++#include "control/controlpushbutton.h"
++#include "library/libraryfeature.h"
++#include "library/sidebarmodel.h"
++#include "library/treeitem.h"
++#include "library/treeitemmodel.h"
++#include "moc_libraryfavorites.cpp"
++#include "widget/wlibrarysidebar.h"
++
++namespace {
++
++const QString kLibraryGroup = QStringLiteral("[Library]");
++const QString kConfigGroup = QStringLiteral("[LibraryFavorites]");
++
++ConfigKey slotKey(int slot, const QString& suffix) {
++    return ConfigKey(kLibraryGroup,
++            QStringLiteral("favorite_%1_%2").arg(slot + 1).arg(suffix));
++}
++
++ConfigKey configKey(int slot) {
++    return ConfigKey(kConfigGroup, QStringLiteral("favorite_%1").arg(slot + 1));
++}
++
++void collectMatches(const TreeItem* pItem,
++        const LibraryFavorite& favorite,
++        QList<const TreeItem*>* pMatches) {
++    for (const TreeItem* pChild : pItem->children()) {
++        const bool matches = favorite.dataKey.isEmpty()
++                ? mixxx::libraryfavorites::dataKey(pChild).isEmpty() &&
++                        mixxx::libraryfavorites::labelPath(pChild) ==
++                                favorite.labelPath
++                : mixxx::libraryfavorites::dataKey(pChild) == favorite.dataKey;
++        if (matches) {
++            pMatches->append(pChild);
++        }
++        collectMatches(pChild, favorite, pMatches);
++    }
++}
++
++} // namespace
++
++QString LibraryFavorite::toString() const {
++    QJsonObject object;
++    object.insert(QStringLiteral("feature"), feature);
++    object.insert(QStringLiteral("data"), dataKey);
++    object.insert(QStringLiteral("path"), QJsonArray::fromStringList(labelPath));
++    return QString::fromUtf8(QJsonDocument(object).toJson(QJsonDocument::Compact));
++}
++
++// static
++LibraryFavorite LibraryFavorite::fromString(const QString& text) {
++    const QJsonObject object = QJsonDocument::fromJson(text.toUtf8()).object();
++    LibraryFavorite favorite;
++    favorite.feature = object.value(QStringLiteral("feature")).toString();
++    favorite.dataKey = object.value(QStringLiteral("data")).toString();
++    const QJsonArray path = object.value(QStringLiteral("path")).toArray();
++    for (const auto& label : path) {
++        favorite.labelPath.append(label.toString());
++    }
++    return favorite;
++}
++
++namespace mixxx {
++namespace libraryfavorites {
++
++QString dataKey(const TreeItem* pItem) {
++    const QVariant& data = pItem->getData();
++    if (!data.isValid()) {
++        return QString();
++    }
++    const QVariantList list = data.toList();
++    if (!list.isEmpty()) {
++        return list.first().toString();
++    }
++    return data.toString();
++}
++
++QStringList labelPath(const TreeItem* pItem) {
++    QStringList path;
++    for (const TreeItem* pNode = pItem; pNode && !pNode->isRoot();
++            pNode = pNode->parent()) {
++        path.prepend(pNode->getLabel());
++    }
++    return path;
++}
++
++LibraryFavorite favoriteFor(const QString& feature, const TreeItem* pItem) {
++    LibraryFavorite favorite;
++    favorite.feature = feature;
++    if (pItem && !pItem->isRoot()) {
++        favorite.dataKey = dataKey(pItem);
++        favorite.labelPath = labelPath(pItem);
++    }
++    return favorite;
++}
++
++const TreeItem* find(const TreeItem* pRoot, const LibraryFavorite& favorite) {
++    if (!pRoot || !favorite.isValid()) {
++        return nullptr;
++    }
++    if (favorite.isFeatureRoot()) {
++        return pRoot;
++    }
++    QList<const TreeItem*> matches;
++    collectMatches(pRoot, favorite, &matches);
++    if (matches.size() <= 1) {
++        return matches.isEmpty() ? nullptr : matches.first();
++    }
++    // Several items share the data: the label path decides. If no label
++    // matches any more (a count in it changed), the first is as good a guess
++    // as any, and better than doing nothing.
++    for (const TreeItem* pMatch : std::as_const(matches)) {
++        if (labelPath(pMatch) == favorite.labelPath) {
++            return pMatch;
++        }
++    }
++    return matches.first();
++}
++
++} // namespace libraryfavorites
++} // namespace mixxx
++
++LibraryFavorites::LibraryFavorites(UserSettingsPointer pConfig, QObject* pParent)
++        : QObject(pParent),
++          m_pConfig(std::move(pConfig)),
++          m_pSidebarWidget(nullptr),
++          m_pRecalls(std::make_unique<ControlObject>(
++                  ConfigKey(kLibraryGroup, QStringLiteral("favorite_recalls")))) {
++    m_pRecalls->setReadOnly();
++    for (int slot = 0; slot < kCount; ++slot) {
++        m_favorites.push_back(LibraryFavorite::fromString(
++                m_pConfig->getValueString(configKey(slot))));
++
++        auto pStore = std::make_unique<ControlPushButton>(slotKey(slot, QStringLiteral("store")));
++        connect(pStore.get(),
++                &ControlObject::valueChanged,
++                this,
++                [this, slot](double value) {
++                    if (value > 0) {
++                        store(slot);
++                    }
++                });
++        m_storeControls.push_back(std::move(pStore));
++
++        auto pActivate = std::make_unique<ControlPushButton>(
++                slotKey(slot, QStringLiteral("activate")));
++        connect(pActivate.get(),
++                &ControlObject::valueChanged,
++                this,
++                [this, slot](double value) {
++                    if (value > 0) {
++                        activate(slot);
++                    }
++                });
++        m_activateControls.push_back(std::move(pActivate));
++
++        auto pStatus = std::make_unique<ControlObject>(slotKey(slot, QStringLiteral("status")));
++        pStatus->setReadOnly();
++        pStatus->forceSet(m_favorites.back().isValid() ? 1.0 : 0.0);
++        m_statusControls.push_back(std::move(pStatus));
++    }
++}
++
++LibraryFavorites::~LibraryFavorites() = default;
++
++void LibraryFavorites::bindSidebarWidget(WLibrarySidebar* pSidebarWidget) {
++    if (m_pSidebarWidget) {
++        disconnect(m_pSidebarWidget, nullptr, this, nullptr);
++    }
++    m_pSidebarWidget = pSidebarWidget;
++    if (m_pSidebarWidget) {
++        connect(m_pSidebarWidget,
++                &QObject::destroyed,
++                this,
++                &LibraryFavorites::slotSidebarWidgetDeleted);
++    }
++}
++
++void LibraryFavorites::slotSidebarWidgetDeleted() {
++    m_pSidebarWidget = nullptr;
++}
++
++SidebarModel* LibraryFavorites::sidebarModel() const {
++    return m_pSidebarWidget ? qobject_cast<SidebarModel*>(m_pSidebarWidget->model())
++                            : nullptr;
++}
++
++void LibraryFavorites::store(int slot) {
++    SidebarModel* pModel = sidebarModel();
++    if (!pModel) {
++        return;
++    }
++    const QModelIndex index = m_pSidebarWidget->selectedIndex();
++    LibraryFeature* pFeature = pModel->featureForIndex(index);
++    if (!pFeature) {
++        qDebug() << "LibraryFavorites: nothing selected to store as favorite" << slot + 1;
++        return;
++    }
++    const TreeItem* pItem = index.internalPointer() == pModel
++            ? nullptr // a feature's own row
++            : static_cast<const TreeItem*>(index.internalPointer());
++    const LibraryFavorite favorite =
++            mixxx::libraryfavorites::favoriteFor(pFeature->iconName(), pItem);
++    m_favorites[slot] = favorite;
++    m_pConfig->setValue(configKey(slot), favorite.toString());
++    m_statusControls[slot]->forceSet(1.0);
++    qInfo() << "LibraryFavorites: stored favorite" << slot + 1 << favorite.toString();
++}
++
++void LibraryFavorites::activate(int slot) {
++    SidebarModel* pModel = sidebarModel();
++    const LibraryFavorite& favorite = m_favorites[slot];
++    if (!pModel || !favorite.isValid()) {
++        return;
++    }
++    for (LibraryFeature* pFeature : pModel->features()) {
++        if (pFeature->iconName() != favorite.feature) {
++            continue;
++        }
++        const TreeItemModel* pTreeModel = pFeature->sidebarModel();
++        const TreeItem* pItem = mixxx::libraryfavorites::find(
++                pTreeModel ? pTreeModel->getRootItem() : nullptr, favorite);
++        if (!pItem) {
++            break;
++        }
++        const QModelIndex index = pItem->isRoot()
++                ? pModel->getFeatureRootIndex(pFeature)
++                : pModel->indexForTreeItem(const_cast<TreeItem*>(pItem));
++        if (!index.isValid()) {
++            break;
++        }
++        m_pSidebarWidget->activateIndex(index);
++        m_pRecalls->forceSet(m_pRecalls->get() + 1);
++        return;
++    }
++    qDebug() << "LibraryFavorites: favorite" << slot + 1 << "is not in the sidebar"
++             << favorite.toString();
++}
+diff --git a/src/library/libraryfavorites.h b/src/library/libraryfavorites.h
+new file mode 100644
+index 00000000..d0e3a712
+--- /dev/null
++++ b/src/library/libraryfavorites.h
+@@ -0,0 +1,102 @@
++#pragma once
++
++#include <QObject>
++#include <QString>
++#include <QStringList>
++#include <memory>
++#include <vector>
++
++#include "preferences/usersettings.h"
++
++class ControlObject;
++class ControlPushButton;
++class LibraryFeature;
++class SidebarModel;
++class TreeItem;
++class WLibrarySidebar;
++
++/// A sidebar item remembered well enough to find it again: which feature it
++/// belongs to, and a key for the item within that feature's tree.
++///
++/// The key is the item's data where it has any -- a crate or playlist id, a
++/// folder path, a Rekordbox or Serato playlist path -- because that survives
++/// renames and the track counts some labels carry. The label path is kept as
++/// well: it tells apart items that share their data (History's year folders
++/// all carry the same placeholder id), and it is the only key for items that
++/// have no data at all (the folder levels of nested Serato crates).
++struct LibraryFavorite {
++    QString feature;       // LibraryFeature::iconName()
++    QString dataKey;       // empty for a feature root or an item without data
++    QStringList labelPath; // labels from below the feature root to the item
++
++    bool isValid() const {
++        return !feature.isEmpty();
++    }
++    bool isFeatureRoot() const {
++        return dataKey.isEmpty() && labelPath.isEmpty();
++    }
++    QString toString() const;
++    static LibraryFavorite fromString(const QString& text);
++};
++
++namespace mixxx {
++namespace libraryfavorites {
++
++/// The item's data as text. A list (Rekordbox, Serato) is keyed by its first
++/// element, the path: the second is a loaded/not-loaded flag that changes when
++/// the item is first opened.
++QString dataKey(const TreeItem* pItem);
++
++/// Labels from the item up to, but not including, the root of its tree.
++QStringList labelPath(const TreeItem* pItem);
++
++LibraryFavorite favoriteFor(const QString& feature, const TreeItem* pItem);
++
++/// The item in the tree under pRoot that `favorite` names, or nullptr if the
++/// tree holds none -- a drive that has left, say, or a crate since deleted.
++/// Only the part of the tree already loaded is searched. A feature-root
++/// favorite finds pRoot itself.
++const TreeItem* find(const TreeItem* pRoot, const LibraryFavorite& favorite);
++
++} // namespace libraryfavorites
++} // namespace mixxx
++
++/// Numbered favorites for sidebar items, driven by controls so that a
++/// controller can store and recall them:
++///
++///   [Library],favorite_N_store     remember the selected sidebar item as N
++///   [Library],favorite_N_activate  select and open favorite N, as a click would
++///   [Library],favorite_N_status    read-only: 0 nothing stored, 1 stored
++///   [Library],favorite_recalls     read-only: counts successful recalls
++///
++/// N is 1..kCount. A recall whose item is not in the sidebar (its drive is not
++/// plugged in, or not opened yet) does nothing, and the counter does not move;
++/// a mapping can follow the counter to switch to the library only when there
++/// is something to show. Favorites are kept in the config and survive a
++/// restart.
++class LibraryFavorites : public QObject {
++    Q_OBJECT
++  public:
++    static constexpr int kCount = 6;
++
++    LibraryFavorites(UserSettingsPointer pConfig, QObject* pParent);
++    ~LibraryFavorites() override;
++
++    void bindSidebarWidget(WLibrarySidebar* pSidebarWidget);
++
++  private slots:
++    void slotSidebarWidgetDeleted();
++
++  private:
++    void store(int slot);
++    void activate(int slot);
++    SidebarModel* sidebarModel() const;
++
++    const UserSettingsPointer m_pConfig;
++    WLibrarySidebar* m_pSidebarWidget;
++    std::vector<LibraryFavorite> m_favorites;
++    std::vector<std::unique_ptr<ControlPushButton>> m_storeControls;
++    std::vector<std::unique_ptr<ControlPushButton>> m_activateControls;
++    std::vector<std::unique_ptr<ControlObject>> m_statusControls;
++    std::unique_ptr<ControlObject> m_pRecalls;
++};
+diff --git a/src/library/sidebarmodel.cpp b/src/library/sidebarmodel.cpp
+index d499e099..7554e371 100644
+--- a/src/library/sidebarmodel.cpp
++++ b/src/library/sidebarmodel.cpp
+@@ -156,6 +156,24 @@ QModelIndex SidebarModel::getFeatureRootIndex(LibraryFeature* pFeature) {
+     return ind;
+ }
+ 
++LibraryFeature* SidebarModel::featureForIndex(const QModelIndex& index) const {
++    if (!index.isValid()) {
++        return nullptr;
++    }
++    if (index.internalPointer() == this) {
++        return index.row() < m_sFeatures.size() ? m_sFeatures[index.row()] : nullptr;
++    }
++    const TreeItem* pTreeItem = static_cast<TreeItem*>(index.internalPointer());
++    return pTreeItem ? pTreeItem->feature() : nullptr;
++}
++
++QModelIndex SidebarModel::indexForTreeItem(TreeItem* pItem) const {
++    VERIFY_OR_DEBUG_ASSERT(pItem && !pItem->isRoot()) {
++        return QModelIndex();
++    }
++    return createIndex(pItem->parentRow(), 0, pItem);
++}
++
+ void SidebarModel::clear(const QModelIndex& index) {
+     if (index.internalPointer() == this) {
+         m_sFeatures[index.row()]->clear();
+diff --git a/src/library/sidebarmodel.h b/src/library/sidebarmodel.h
+index 06ff970c..c28b25c5 100644
+--- a/src/library/sidebarmodel.h
++++ b/src/library/sidebarmodel.h
+@@ -7,6 +7,7 @@
+ 
+ class LibraryFeature;
+ class QTimer;
++class TreeItem;
+ 
+ class SidebarModel : public QAbstractItemModel {
+     Q_OBJECT
+@@ -47,6 +48,15 @@ class SidebarModel : public QAbstractItemModel {
+     }
+     QModelIndex getFeatureRootIndex(LibraryFeature* pFeature);
+ 
++    const QList<LibraryFeature*>& features() const {
++        return m_sFeatures;
++    }
++    /// The feature a sidebar index belongs to: its own row, or any item in
++    /// its tree. nullptr for an invalid index.
++    LibraryFeature* featureForIndex(const QModelIndex& index) const;
++    /// The sidebar index of an item in a feature's tree (not its root).
++    QModelIndex indexForTreeItem(TreeItem* pItem) const;
++
+     void clear(const QModelIndex& index);
+     void paste(const QModelIndex& index);
+ 
+diff --git a/src/test/libraryfavorites_test.cpp b/src/test/libraryfavorites_test.cpp
+new file mode 100644
+index 00000000..5557ea3c
+--- /dev/null
++++ b/src/test/libraryfavorites_test.cpp
+@@ -0,0 +1,119 @@
++#include "library/libraryfavorites.h"
++
++#include <gtest/gtest.h>
++
++#include <QStringList>
++#include <QVariantList>
++
++#include "library/treeitem.h"
++
++namespace {
++
++using namespace mixxx::libraryfavorites;
++
++// A sidebar tree shaped like the ones the features build, with no feature
++// behind it: the matching only looks at labels and data.
++class LibraryFavoritesTest : public testing::Test {
++  protected:
++    TreeItem m_root;
++};
++
++TEST_F(LibraryFavoritesTest, KeysAnItemByItsData) {
++    TreeItem* pCrate = m_root.appendChild(QStringLiteral("House (12)"), 42);
++    EXPECT_EQ(QStringLiteral("42"), dataKey(pCrate));
++    EXPECT_EQ(QStringList{QStringLiteral("House (12)")}, labelPath(pCrate));
++}
++
++TEST_F(LibraryFavoritesTest, KeysAListByItsPathNotItsLoadedFlag) {
++    // Rekordbox and Serato keep a path and a flag that flips once the item
++    // has been opened. The flag must not be part of the key.
++    TreeItem* pDevice = m_root.appendChild(QStringLiteral("GRIZ_T7"),
++            QVariant(QList<QString>{QStringLiteral("/run/media/griz/GRIZ_T7"),
++                    QStringLiteral("IS_RECORDBOX_DEVICE")}));
++    const LibraryFavorite before = favoriteFor(QStringLiteral("rekordbox"), pDevice);
++    pDevice->setData(QVariant(QList<QString>{QStringLiteral("/run/media/griz/GRIZ_T7"),
++            QStringLiteral("IS_NOT_RECORDBOX_DEVICE")}));
++    EXPECT_EQ(QStringLiteral("/run/media/griz/GRIZ_T7"), before.dataKey);
++    EXPECT_EQ(pDevice, find(&m_root, before));
++
++    TreeItem* pCrate = m_root.appendChild(QStringLiteral("Tech"),
++            QVariant(QVariantList{QStringLiteral("/d/_Serato_/Subcrates/Tech.crate"), true}));
++    EXPECT_EQ(QStringLiteral("/d/_Serato_/Subcrates/Tech.crate"), dataKey(pCrate));
++}
++
++TEST_F(LibraryFavoritesTest, FindsADeepItemByData) {
++    TreeItem* pDevice = m_root.appendChild(QStringLiteral("GRIZ_T7"),
++            QVariant(QList<QString>{QStringLiteral("/m/GRIZ_T7"), QStringLiteral("x")}));
++    TreeItem* pFolder = pDevice->appendChild(QStringLiteral("Sets"),
++            QVariant(QList<QString>{QStringLiteral("/m/GRIZ_T7/Sets"), QStringLiteral("x")}));
++    TreeItem* pPlaylist = pFolder->appendChild(QStringLiteral("Warmup"),
++            QVariant(QList<QString>{
++                    QStringLiteral("/m/GRIZ_T7/Sets/Warmup"), QStringLiteral("x")}));
++    const LibraryFavorite favorite = favoriteFor(QStringLiteral("rekordbox"), pPlaylist);
++    EXPECT_EQ((QStringList{QStringLiteral("GRIZ_T7"),
++                      QStringLiteral("Sets"),
++                      QStringLiteral("Warmup")}),
++            favorite.labelPath);
++    EXPECT_EQ(pPlaylist, find(&m_root, favorite));
++}
++
++TEST_F(LibraryFavoritesTest, SurvivesALabelChangeWhenTheDataIsUnique) {
++    // A crate's label carries its track count, which changes.
++    TreeItem* pCrate = m_root.appendChild(QStringLiteral("House (12)"), 42);
++    const LibraryFavorite favorite = favoriteFor(QStringLiteral("crates"), pCrate);
++    pCrate->setLabel(QStringLiteral("House (13)"));
++    EXPECT_EQ(pCrate, find(&m_root, favorite));
++}
++
++TEST_F(LibraryFavoritesTest, SharedDataIsToldApartByLabel) {
++    // History files its playlists under year folders that all carry the same
++    // placeholder id.
++    TreeItem* p2025 = m_root.appendChild(QStringLiteral("2025"), -2);
++    TreeItem* p2026 = m_root.appendChild(QStringLiteral("2026"), -2);
++    EXPECT_EQ(p2026, find(&m_root, favoriteFor(QStringLiteral("history"), p2026)));
++    EXPECT_EQ(p2025, find(&m_root, favoriteFor(QStringLiteral("history"), p2025)));
++}
++
++TEST_F(LibraryFavoritesTest, ItemsWithoutDataAreFoundByLabelPath) {
++    // The folder levels of nested Serato crates have no data of their own.
++    TreeItem* pDb = m_root.appendChild(QStringLiteral("GRIZ_T7"),
++            QVariant(QVariantList{QStringLiteral("/m/GRIZ_T7/_Serato_/database V2"), true}));
++    TreeItem* pFolderA = pDb->appendChild(QStringLiteral("Genres"));
++    TreeItem* pFolderB = pDb->appendChild(QStringLiteral("Gigs"));
++    const LibraryFavorite favorite = favoriteFor(QStringLiteral("serato"), pFolderB);
++    EXPECT_TRUE(favorite.dataKey.isEmpty());
++    EXPECT_FALSE(favorite.isFeatureRoot());
++    EXPECT_EQ(pFolderB, find(&m_root, favorite));
++    EXPECT_NE(pFolderA, find(&m_root, favorite));
++}
++
++TEST_F(LibraryFavoritesTest, AGoneItemIsNotFound) {
++    TreeItem* pCrate = m_root.appendChild(QStringLiteral("House"), 42);
++    const LibraryFavorite favorite = favoriteFor(QStringLiteral("crates"), pCrate);
++    m_root.removeChildren(0, 1);
++    EXPECT_EQ(nullptr, find(&m_root, favorite));
++}
++
++TEST_F(LibraryFavoritesTest, AFeatureRootFindsTheRoot) {
++    const LibraryFavorite favorite = favoriteFor(QStringLiteral("autodj"), nullptr);
++    EXPECT_TRUE(favorite.isValid());
++    EXPECT_TRUE(favorite.isFeatureRoot());
++    EXPECT_EQ(&m_root, find(&m_root, favorite));
++    EXPECT_TRUE(favoriteFor(QStringLiteral("autodj"), &m_root).isFeatureRoot());
++}
++
++TEST_F(LibraryFavoritesTest, RoundTripsThroughText) {
++    LibraryFavorite favorite;
++    favorite.feature = QStringLiteral("rekordbox");
++    favorite.dataKey = QStringLiteral("/m/GRIZ T7/Sets\\Warm \"up\"");
++    favorite.labelPath = QStringList{QStringLiteral("GRIZ T7"), QStringLiteral("Warm \"up\"")};
++    const LibraryFavorite back = LibraryFavorite::fromString(favorite.toString());
++    EXPECT_EQ(favorite.feature, back.feature);
++    EXPECT_EQ(favorite.dataKey, back.dataKey);
++    EXPECT_EQ(favorite.labelPath, back.labelPath);
++
++    EXPECT_FALSE(LibraryFavorite::fromString(QString()).isValid());
++    EXPECT_FALSE(LibraryFavorite::fromString(QStringLiteral("not json")).isValid());
++}
++
++} // namespace
+diff --git a/src/widget/wlibrarysidebar.cpp b/src/widget/wlibrarysidebar.cpp
+index ebd74d94..b96c074d 100644
+--- a/src/widget/wlibrarysidebar.cpp
++++ b/src/widget/wlibrarysidebar.cpp
+@@ -436,6 +436,18 @@ void WLibrarySidebar::selectChildIndex(const QModelIndex& index, bool selectItem
+     scrollTo(translated, EnsureVisible);
+ }
+ 
++void WLibrarySidebar::activateIndex(const QModelIndex& index) {
++    if (!index.isValid()) {
++        return;
++    }
++    for (QModelIndex parentIndex = index.parent(); parentIndex.isValid();
++            parentIndex = parentIndex.parent()) {
++        expand(parentIndex);
++    }
++    selectIndex(index, true);
++    emit clicked(index);
++}
++
+ QModelIndex WLibrarySidebar::selectedIndex() {
+     QModelIndexList selectedIndices = selectionModel()->selectedRows();
+     if (selectedIndices.isEmpty()) {
+diff --git a/src/widget/wlibrarysidebar.h b/src/widget/wlibrarysidebar.h
+index 55e0baaf..381b47a0 100644
+--- a/src/widget/wlibrarysidebar.h
++++ b/src/widget/wlibrarysidebar.h
+@@ -30,6 +30,11 @@ class WLibrarySidebar : public QTreeView, public WBaseWidget {
+     bool isChildIndexSelected(const QModelIndex& index);
+     bool isFeatureRootIndexSelected(LibraryFeature* pFeature);
+ 
++    QModelIndex selectedIndex();
++    /// Select a sidebar item, expand everything above it, scroll to it and open
++    /// it the way a click would.
++    void activateIndex(const QModelIndex& index);
++
+   public slots:
+     void selectIndex(const QModelIndex& index, bool scrollToIndex = true);
+     void selectChildIndex(const QModelIndex&, bool selectItem = true);
+@@ -48,7 +53,6 @@ class WLibrarySidebar : public QTreeView, public WBaseWidget {
+ 
+   private:
+     void focusSelectedIndex();
+-    QModelIndex selectedIndex();
+ 
+     void toggleDragHoverPropertyAndUpdateStyle(bool enabled);
+     void resetHoverIndexAndDragMoveResult();
+-- 
+2.51.0

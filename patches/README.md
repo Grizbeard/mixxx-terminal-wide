@@ -42,8 +42,9 @@ do not want and the rest still apply.
 | 0010 `WKey` honours the skin's alignment | the deck's key reads centred instead of from the left |
 | 0011 gap between the key colour bar and the key text | the bar and the first glyph butt together |
 | 0013 library device lists follow mounts | a USB drive plugged in or pulled mid-session only shows up in (or leaves) Computer > Removable Devices, Rekordbox and Serato when that node is collapsed and expanded again |
+| 0014 numbered library favorites for controllers | SHIFT + the DJM-T1's effect buttons do nothing: DJM-T1_Custom binds them to `[Library],favorite_N_*`, which do not exist, so there is no jumping straight to a stored crate, playlist, folder or Rekordbox/Serato playlist |
 
-0007 and 0013 cost features. The rest are cosmetic, and the skin is built to
+0007, 0013 and 0014 cost features. The rest are cosmetic, and the skin is built to
 degrade quietly without them.
 
 There is no 0012 here. It was wet-only effect units, for post-fader effects
