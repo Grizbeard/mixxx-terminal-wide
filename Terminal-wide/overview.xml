@@ -40,8 +40,13 @@
         <DimBrightThreshold><Variable name="DimBrightThresholdOverview"/></DimBrightThreshold>
         <LabelFontSize><Variable name="OverviewFontSizeDeck"/></LabelFontSize>
 
+        <!-- Hot cue flags along the top, where they read first; the main cue
+             flag along the bottom, so a hot cue on the cue point does not
+             cover it. The Pioneer layout, and it suits the bottom-anchored
+             overview (Stereo off in Preferences > Waveforms), whose top edge
+             is mostly clear. -->
         <DefaultMark>
-          <Align>bottom|right</Align>
+          <Align>top|right</Align>
           <UseCueColor><Variable name="UseCueColor"/></UseCueColor>
           <Color><Variable name="MarkDefaultColor"/></Color>
           <TextColor><Variable name="MarkTextColor"/></TextColor>
@@ -52,7 +57,7 @@
         <Mark>
           <Control>cue_point</Control>
           <Text>cue</Text>
-          <Align>top|right</Align>
+          <Align>bottom|right</Align>
           <Color><Variable name="CueColor"/></Color>
           <TextColor><Variable name="MarkTextColor"/></TextColor>
         </Mark>
