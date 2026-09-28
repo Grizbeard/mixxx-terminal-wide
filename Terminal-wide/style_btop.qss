@@ -145,9 +145,12 @@
 }
 
 /* Mix mode is a selector - dry/wet against dry+wet, neither of them "on" -
-   so it keeps one block in both states and lets the label carry it. */
+   so it keeps one block in both states and lets the label carry it. So is
+   the knob target: super or dry/wet. */
 #Mixxx WPushButton#FxMixMode[displayValue="0"],
-#Mixxx WPushButton#FxMixMode[displayValue="1"] {
+#Mixxx WPushButton#FxMixMode[displayValue="1"],
+#Mixxx WPushButton#FxKnobTarget[displayValue="0"],
+#Mixxx WPushButton#FxKnobTarget[displayValue="1"] {
   background-color: #181a16;
   color: #b7c7ad;
 }

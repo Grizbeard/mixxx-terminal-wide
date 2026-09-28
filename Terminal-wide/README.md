@@ -117,8 +117,13 @@ rather than a strip.
 
 **fx** — one effect unit at a time, with everything it has. An `fx 1` –
 `fx 4` picker at the left of the header chooses the unit; the rest of the
-header is that unit's enable, mix mode, dry/wet and super knobs, chain preset
-selector and its menu, and routing. Under it the unit's three slots stand side
+header is that unit's enable, mix mode, dry/wet and super knobs, a
+`knob: super` / `knob: d/w` button, chain preset selector and its menu, and
+routing. The knob button keeps, per unit and across restarts, which of the two
+knobs a controller's single effect knob should turn, as
+`[TerminalWide],fx<unit>_knob_drywet` (0 super, 1 dry/wet). The skin only
+stores it: the DJM-T1_Custom mapping reads it for its DRY/WET knobs, and with
+no mapping reading it the button does nothing. Under it the unit's three slots stand side
 by side as equal columns, each with its enable, effect selector and meta knob
 on top and every parameter of the loaded effect below, four to a row.
 

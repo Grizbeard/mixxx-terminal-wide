@@ -2,8 +2,8 @@
 <!--
   Description:
     One whole effect unit: which unit the page is showing, what it is routed
-    to, whether it is on, its dry/wet and super knobs, and its three slots side
-    by side, one column each.
+    to, whether it is on, its dry/wet and super knobs and which of them a
+    controller's knob turns, and its three slots side by side, one column each.
 
     Routing is a pair of buttons rather than a fixed wiring, so a unit can be
     put on the other deck or on both mid-set. Units 1 and 2 start on deck 1 and
@@ -100,6 +100,25 @@
             <SetVariable name="ArcColor"><Variable name="ArcColorSuper"/></SetVariable>
             <SetVariable name="ConfigKey"><Variable name="FxUnitGroup"/>,super1</SetVariable>
           </Template>
+
+          <!-- Which of the two knobs beside it a controller's single unit knob
+               turns: [TerminalWide],fx<unit>_knob_drywet, 0 for the super knob
+               (the default), 1 for dry/wet. The skin only keeps the setting,
+               per unit and across restarts; a mapping reads it (DJM-T1_Custom
+               does, for its FX DRY/WET knobs). With no mapping reading it,
+               the button changes nothing. -->
+          <PushButton>
+            <ObjectName>FxKnobTarget</ObjectName>
+            <Tooltip>Which knob the controller's effect knob turns for this unit: the super knob or dry/wet.</Tooltip>
+            <Size>150f,42f</Size>
+            <NumberStates>2</NumberStates>
+            <State><Number>0</Number><Text>knob: super</Text></State>
+            <State><Number>1</Number><Text>knob: d/w</Text></State>
+            <Connection>
+              <ConfigKey persist="true">[TerminalWide],fx<Variable name="FxUnit"/>_knob_drywet</ConfigKey>
+              <ButtonState>LeftButton</ButtonState>
+            </Connection>
+          </PushButton>
 
           <!-- Chain presets: the whole unit - all three slots, their effects and
                their parameters - saved and recalled as one thing.
