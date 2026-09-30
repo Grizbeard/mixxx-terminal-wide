@@ -72,7 +72,8 @@
       <attribute config_key="[Controls],ShowDurationRemaining">1</attribute>
 
       <!-- Deck rows the options page can show or hide. hotcue_count is
-           0 none, 1 four, 2 eight. Beatjump is off by default: with turntables
+           0 none, 1 the row of four (which follows a controller's bank; there
+           is no longer a two-row eight). Beatjump is off by default: with turntables
            driving playback it is the least-used of the three, and the panel is
            480px tall. -->
       <attribute persist="true" config_key="[TerminalWide],hotcue_count">1</attribute>
@@ -191,10 +192,11 @@
       <!-- WKnobComposed centres the arc on the widget at this radius, so the
            knob has to be at least 2*ArcRadius + ArcThickness in both
            directions or the arc is clipped: 20 and 5 wanted 45px out of a 44px
-           knob, which is exactly the sliver that went missing. -->
-      <SetVariable name="ArcRadius">16</SetVariable>
-      <SetVariable name="ArcThickness">4</SetVariable>
-      <SetVariable name="ArcBgThickness">4</SetVariable>
+           knob, which is exactly the sliver that went missing. 21 and 5 want
+           47px, and the smallest knob is now 52. -->
+      <SetVariable name="ArcRadius">21</SetVariable>
+      <SetVariable name="ArcThickness">5</SetVariable>
+      <SetVariable name="ArcBgThickness">5</SetVariable>
       <SetVariable name="ArcBgColor">#596154</SetVariable>
       <!-- Square caps: a terminal meter has no rounded ends. -->
       <SetVariable name="ArcRoundCaps">false</SetVariable>
@@ -297,10 +299,11 @@
       <!-- WKnobComposed centres the arc on the widget at this radius, so the
            knob has to be at least 2*ArcRadius + ArcThickness in both
            directions or the arc is clipped: 20 and 5 wanted 45px out of a 44px
-           knob, which is exactly the sliver that went missing. -->
-      <SetVariable name="ArcRadius">16</SetVariable>
-      <SetVariable name="ArcThickness">4</SetVariable>
-      <SetVariable name="ArcBgThickness">4</SetVariable>
+           knob, which is exactly the sliver that went missing. 21 and 5 want
+           47px, and the smallest knob is now 52. -->
+      <SetVariable name="ArcRadius">21</SetVariable>
+      <SetVariable name="ArcThickness">5</SetVariable>
+      <SetVariable name="ArcBgThickness">5</SetVariable>
       <SetVariable name="ArcBgColor">#665124</SetVariable>
       <!-- Square caps: a terminal meter has no rounded ends. -->
       <SetVariable name="ArcRoundCaps">false</SetVariable>
@@ -403,10 +406,11 @@
       <!-- WKnobComposed centres the arc on the widget at this radius, so the
            knob has to be at least 2*ArcRadius + ArcThickness in both
            directions or the arc is clipped: 20 and 5 wanted 45px out of a 44px
-           knob, which is exactly the sliver that went missing. -->
-      <SetVariable name="ArcRadius">16</SetVariable>
-      <SetVariable name="ArcThickness">4</SetVariable>
-      <SetVariable name="ArcBgThickness">4</SetVariable>
+           knob, which is exactly the sliver that went missing. 21 and 5 want
+           47px, and the smallest knob is now 52. -->
+      <SetVariable name="ArcRadius">21</SetVariable>
+      <SetVariable name="ArcThickness">5</SetVariable>
+      <SetVariable name="ArcBgThickness">5</SetVariable>
       <SetVariable name="ArcBgColor">#246626</SetVariable>
       <!-- Square caps: a terminal meter has no rounded ends. -->
       <SetVariable name="ArcRoundCaps">false</SetVariable>
@@ -509,10 +513,11 @@
       <!-- WKnobComposed centres the arc on the widget at this radius, so the
            knob has to be at least 2*ArcRadius + ArcThickness in both
            directions or the arc is clipped: 20 and 5 wanted 45px out of a 44px
-           knob, which is exactly the sliver that went missing. -->
-      <SetVariable name="ArcRadius">16</SetVariable>
-      <SetVariable name="ArcThickness">4</SetVariable>
-      <SetVariable name="ArcBgThickness">4</SetVariable>
+           knob, which is exactly the sliver that went missing. 21 and 5 want
+           47px, and the smallest knob is now 52. -->
+      <SetVariable name="ArcRadius">21</SetVariable>
+      <SetVariable name="ArcThickness">5</SetVariable>
+      <SetVariable name="ArcBgThickness">5</SetVariable>
       <SetVariable name="ArcBgColor">#4d555b</SetVariable>
       <!-- Square caps: a terminal meter has no rounded ends. -->
       <SetVariable name="ArcRoundCaps">false</SetVariable>

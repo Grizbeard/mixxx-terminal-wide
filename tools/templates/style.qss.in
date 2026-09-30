@@ -438,13 +438,17 @@ WTrackProperty,
 /* An option button cycles rather than latches, so none of its states is "on"
    and filling one with the accent would claim otherwise. Give every state the
    muted selection colour and let the word on the button - "two rows", "440 px",
-   "in each deck" - be the readout. The four-state rows need states 2 and 3
-   named explicitly; without them they fall through to the bare WPushButton
-   rule and render with no fill at all. */
+   "in each deck" - be the readout. Every state a row can reach has to be
+   named here; one that isn't falls through to the bare WPushButton rule and
+   renders with no fill at all. The seven-state deck width did exactly that
+   from 520 px up until states 4 to 6 were added. */
 #Mixxx #OptionRow WPushButton[displayValue="0"],
 #Mixxx #OptionRow WPushButton[displayValue="1"],
 #Mixxx #OptionRow WPushButton[displayValue="2"],
-#Mixxx #OptionRow WPushButton[displayValue="3"] {
+#Mixxx #OptionRow WPushButton[displayValue="3"],
+#Mixxx #OptionRow WPushButton[displayValue="4"],
+#Mixxx #OptionRow WPushButton[displayValue="5"],
+#Mixxx #OptionRow WPushButton[displayValue="6"] {
   background-color: {{select}};
   color: {{select_text}};
 }

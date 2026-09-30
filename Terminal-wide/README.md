@@ -16,14 +16,13 @@ Two decks flanking the waveforms:
 │ rate ±8    key  ├────────────────────────────┤ rate ±8    key   │
 │ 1  2  3  4     │  deck 2 waveform            │ 1  2  3  4     │
 │ loop 4  ◀ 4 ▶  │                             │ loop 4  ◀ 4 ▶  │
-│ timecode       ├──────────────┬──────────────┤ timecode       │
-│ vinyl rel drop │ overview     │ overview     │ vinyl rel drop │
-│ play cue sync  │              │              │ play cue sync  │
+│ vinyl rel drop ├──────────────┬──────────────┤ vinyl rel drop │
+│ play cue sync  │ overview     │ overview     │ play cue sync  │
 └────────────────┴──────────────┴──────────────┴────────────────┘
 ```
 
 The tab bar runs only the width of the waveform column. Across the whole window
-it cost the deck columns 34px of height, and the tabs have nothing to do with
+it cost the deck columns 44px of height, and the tabs have nothing to do with
 the decks anyway. It is one widget that moves: a singleton, sitting inside
 whichever page is showing, full width on the two pages that are full width.
 
@@ -277,7 +276,7 @@ one from the `search-osk` patch carried by the appliance.
 | deck column width | 360 … 600 px in 40s | 400 px |
 | track overview | under waveform / in each deck / full width | under waveform |
 | overview height | 24 / 36 / 52 / 72 px, either placement | 36 px |
-| hot cues | hidden / 4 / 8 | 4 |
+| hot cues | hidden / shown (the row of four) | shown |
 | loop | hidden / shown | shown |
 | beatjump | hidden / shown | hidden |
 | dvs controls | hidden / shown | shown |
@@ -333,7 +332,7 @@ costs nothing per frame.
 
 Under the tempo readouts, three rows the options page turns on and off:
 
-- **hot cues** — one row of four, two rows of eight, or none. A set cue shows
+- **hot cues** — one row of four, or none. A set cue shows
   the colour the cue itself carries, unless the scheme is monochrome and has
   switched that off. A cue whose stored colour is black — common on tracks
   carrying imported Serato or rekordbox markers — therefore paints black on a
@@ -346,15 +345,19 @@ Under the tempo readouts, three rows the options page turns on and off:
   writes them, as DJM-T1_Custom does from ACTIVE A/B. Nothing writing them
   leaves them at 0, and the row at 1-4. Controllers can start before the skin
   has loaded (in a QOpenGL build they always do), so a mapping has to allow for
-  the controls not existing yet when it starts. Two rows of eight ignore the
-  bank.
-
-  Eight cues, beatjump on and a 72px full-width overview together are taller
-  than the deck column, and Qt overlaps rows to fit them. Drop any one of them.
+  the controls not existing yet when it starts. There used to be a two-row
+  eight as well; following the bank does its job in one row, and the row it
+  cost is worth more as button height.
 - **loop length** and **beatjump length** share one row: `loop · 4 · ◀ · 4 · ▶`.
   Beatjump is off by default — with turntables doing the playing it is the
   least-used, and the panel is 480px tall. With both off the row collapses
   rather than leaving a gap.
+
+The button rows (hot cues, loop and beatjump, the vinyl controls, the transport)
+have a minimum height and share whatever height the readouts leave. Hiding any
+of them on the options page, or moving the overview out of the full-width row,
+makes the rest taller: with loop and beatjump both off, each remaining row grows
+from about 44px to about 58px.
 
 Each length carries only the control the number does not already imply. The
 loop gets one engage/disengage toggle, which doubles as the indicator of

@@ -18,12 +18,12 @@
   <WidgetGroup>
     <ObjectName>FxKnobBox</ObjectName>
     <Layout>vertical</Layout>
-    <Size>84f,64f</Size>
+    <Size>96f,78f</Size>
     <Children>
       <KnobComposed>
         <ObjectName><Variable name="ObjectName"/></ObjectName>
         <TooltipId><Variable name="TooltipId"/></TooltipId>
-        <Size>0me,44f</Size>
+        <Size>0me,54f</Size>
         <MinAngle><Variable name="PotiMinAngle"/></MinAngle>
         <MaxAngle><Variable name="PotiMaxAngle"/></MaxAngle>
         <ArcRadius><Variable name="ArcRadius"/></ArcRadius>
@@ -38,7 +38,7 @@
       </KnobComposed>
       <Label>
         <ObjectName>FxKnobLabel</ObjectName>
-        <Size>0me,20f</Size>
+        <Size>0me,24f</Size>
         <Text><Variable name="Caption"/></Text>
       </Label>
     </Children>

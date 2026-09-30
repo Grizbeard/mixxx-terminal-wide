@@ -41,7 +41,7 @@
 
           <Label>
             <ObjectName>OptionsSection</ObjectName>
-            <Size>0me,26f</Size>
+            <Size>0me,32f</Size>
             <Text>layout</Text>
           </Label>
 
@@ -91,7 +91,7 @@
 
           <Label>
             <ObjectName>OptionsSection</ObjectName>
-            <Size>0me,26f</Size>
+            <Size>0me,32f</Size>
             <Text>system</Text>
           </Label>
 
@@ -105,18 +105,18 @@
           <WidgetGroup>
             <ObjectName>OptionRow</ObjectName>
             <Layout>horizontal</Layout>
-            <Size>0me,46f</Size>
+            <Size>0me,56f</Size>
             <Children>
 
               <Label>
                 <ObjectName>OptionCaption</ObjectName>
-                <Size>0me,44f</Size>
+                <Size>0me,54f</Size>
                 <Text>power</Text>
               </Label>
 
               <PushButton>
                 <ObjectName>OptShutdown</ObjectName>
-                <Size>190f,44f</Size>
+                <Size>220f,54f</Size>
                 <NumberStates>1</NumberStates>
                 <State>
                   <Number>0</Number>
@@ -149,7 +149,7 @@
 
           <Label>
             <ObjectName>OptionsSection</ObjectName>
-            <Size>0me,26f</Size>
+            <Size>0me,32f</Size>
             <Text>display</Text>
           </Label>
 
@@ -175,10 +175,9 @@
             <SetVariable name="ObjectName">OptHotcues</SetVariable>
             <SetVariable name="Caption">hot cues</SetVariable>
             <SetVariable name="ConfigKey">[TerminalWide],hotcue_count</SetVariable>
-            <SetVariable name="NumberStates">3</SetVariable>
+            <SetVariable name="NumberStates">2</SetVariable>
             <SetVariable name="Text0">hidden</SetVariable>
-            <SetVariable name="Text1">4</SetVariable>
-            <SetVariable name="Text2">8</SetVariable>
+            <SetVariable name="Text1">shown</SetVariable>
           </Template>
 
           <Template src="skin:templates/option_row.xml">

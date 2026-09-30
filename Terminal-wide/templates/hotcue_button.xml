@@ -27,8 +27,8 @@
   <HotcueButton>
     <TooltipId>hotcue</TooltipId>
     <ObjectName>HotcueButton</ObjectName>
-    <SizePolicy>me,f</SizePolicy>
-    <Size>0me,36f</Size>
+    <SizePolicy>me,me</SizePolicy>
+    <Size>0me,38me</Size>
     <Group><Variable name="Group"/></Group>
     <Hotcue><Variable name="Number"/></Hotcue>
     <NumberStates>3</NumberStates>

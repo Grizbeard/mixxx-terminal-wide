@@ -2,8 +2,9 @@
  *
  * Colour lives in style_<scheme>.qss, which Mixxx appends after this file, so
  * everything here is deliberately colour-free. Sizes are picked for an 8.8"
- * 1920x480 panel viewed at arm's length: nothing readable is under 14px, and
- * nothing touchable is under 40px tall.
+ * 1920x480 panel viewed at arm's length: nothing readable is under 17px, and
+ * nothing touchable is under 38px tall. The deck's button rows start there and
+ * grow into whatever height the rows hidden on the options page leave.
  */
 
 /************** font *********************************************************/
@@ -52,14 +53,14 @@ QToolTip {
 
 #TabControls WPushButton,
 #ToolBarOptions WPushButton {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: bold;
   text-transform: lowercase;
   margin: 0px 2px;
 }
 
 #ClockTime {
-  font-size: 20px;
+  font-size: 22px;
   margin-left: 6px;
   qproperty-alignment: 'AlignRight | AlignVCenter';
 }
@@ -81,7 +82,7 @@ QToolTip {
 }
 
 #DeckLabel {
-  font-size: 20px;
+  font-size: 23px;
   font-weight: bold;
   text-transform: lowercase;
   qproperty-alignment: 'AlignLeft | AlignVCenter';
@@ -90,13 +91,13 @@ QToolTip {
 /* Field captions. One size, one case, everywhere - btop's own hierarchy is
    dim lowercase caption over bright value. */
 #DeckFieldLabel {
-  font-size: 15px;
+  font-size: 18px;
   text-transform: lowercase;
   qproperty-alignment: 'AlignLeft | AlignBottom';
 }
 
 #DeckTitle {
-  font-size: 28px;
+  font-size: 32px;
   qproperty-alignment: 'AlignLeft | AlignVCenter';
 }
 
@@ -120,7 +121,7 @@ QToolTip {
 }
 
 #DeckBpmCaption {
-  font-size: 15px;
+  font-size: 17px;
   text-transform: lowercase;
   qproperty-alignment: 'AlignLeft | AlignVCenter';
 }
@@ -139,7 +140,7 @@ QToolTip {
    the row: both are a qualifier on the value beside them rather than a value of
    their own. */
 #DeckKeySteps {
-  font-size: 19px;
+  font-size: 22px;
   padding-left: 4px;
   qproperty-alignment: 'AlignLeft | AlignVCenter';
 }
@@ -150,17 +151,17 @@ QToolTip {
    The range is the smaller of the two: it changes when you change the pitch
    *window*, not when you move the platter. */
 #DeckRate {
-  font-size: 25px;
+  font-size: 28px;
   qproperty-alignment: 'AlignRight | AlignVCenter';
 }
 
 #DeckRateSign {
-  font-size: 19px;
+  font-size: 22px;
   qproperty-alignment: 'AlignCenter';
 }
 
 #DeckRateRange {
-  font-size: 19px;
+  font-size: 22px;
   qproperty-alignment: 'AlignLeft | AlignVCenter';
 }
 
@@ -170,17 +171,18 @@ QToolTip {
    and the stylesheet. Without the patch the key reads centred instead - wrong
    but harmless. */
 #DeckKey {
-  font-size: 25px;
+  font-size: 28px;
   qproperty-alignment: 'AlignLeft | AlignVCenter';
 }
 
 /************** deck buttons *************************************************/
 
-/* 42px tall, 1px apart. About 9mm on this panel, which is the width of a
-   fingertip - the whole reason the deck column is 430px wide. */
+/* At least 50px tall, 1px apart, and taller when other rows are hidden. The
+   panel is 68mm high, so 50px is about 7mm and a fingertip wants 9: every
+   row hidden gets these closer to it. */
 #DeckTransport WPushButton,
 #DvsControlsRow WPushButton {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: bold;
   text-transform: lowercase;
   margin: 1px;
@@ -205,7 +207,7 @@ QToolTip {
 
 #DeckHotcueRow WPushButton,
 #DeckLoopJumpRow WPushButton {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: bold;
   text-transform: lowercase;
   margin: 1px;
@@ -237,7 +239,7 @@ QToolTip {
    unstyled: the length is a readout, and a stepper would be one more thing to
    press on a row that is meant to have almost nothing. */
 #LoopSize, #JumpSize {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: bold;
   margin: 1px;
   padding: 0px 4px;
@@ -254,7 +256,7 @@ QToolTip {
 }
 
 #DvsStatusLight {
-  font-size: 17px;
+  font-size: 20px;
   font-weight: bold;
   text-transform: lowercase;
   margin: 0px;
@@ -268,14 +270,14 @@ QToolTip {
 }
 
 #FxRouteLabel {
-  font-size: 16px;
+  font-size: 19px;
   text-transform: lowercase;
   qproperty-alignment: 'AlignLeft | AlignVCenter';
 }
 
 #FxUnitHeader WPushButton,
 #FxSlotEnable {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: bold;
   text-transform: lowercase;
   margin: 1px;
@@ -286,30 +288,30 @@ QToolTip {
    list get a finger's height rather than the ~20px rows a combo box uses on a
    desktop. */
 #FxSelector {
-  font-size: 20px;
+  font-size: 24px;
   margin: 1px 4px;
   padding: 0px 8px;
 }
 
 #FxSelector QAbstractItemView::item {
-  min-height: 42px;
+  min-height: 52px;
 }
 
 /* Chain presets. The selector reads like the effect selectors beside it; the
    menu button is a block with a glyph, and its menu gets the same finger-sized
    rows the drop-downs do. */
 #FxPresetSelector {
-  font-size: 18px;
+  font-size: 22px;
   margin: 1px 4px;
   padding: 0px 8px;
 }
 
 #FxPresetSelector QAbstractItemView::item {
-  min-height: 42px;
+  min-height: 52px;
 }
 
 #FxPresetButton {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: bold;
   margin: 1px;
   padding: 0px;
@@ -328,17 +330,17 @@ QToolTip {
    skin's other menus. At 18px text and 8px padding a row is ~40px, still a
    finger, and ten of them fit the panel before Qt has to scroll the menu. */
 #FxPresetButton QMenu::item {
-  padding: 8px 16px;
+  padding: 10px 18px;
 }
 
 #FxKnobLabel {
-  font-size: 15px;
+  font-size: 18px;
   text-transform: lowercase;
   qproperty-alignment: 'AlignHCenter | AlignTop';
 }
 
 #FxSlotParams WPushButton {
-  font-size: 17px;
+  font-size: 20px;
   font-weight: bold;
   margin: 1px;
   padding: 0px;
@@ -411,31 +413,38 @@ QToolTip {
 }
 
 WSearchLineEdit {
-  font-size: 23px;
+  font-size: 26px;
   padding: 4px 6px;
 }
 
 WLibrarySidebar {
-  font-size: 20px;
+  font-size: 24px;
+}
+
+/* A crate name is a thumb target, so its row is taller than the text needs.
+   Track rows can't be done here: their height is the [Library],RowHeight
+   preference, which Mixxx sets on the table directly. */
+WLibrarySidebar::item {
+  min-height: 42px;
 }
 
 WTrackTableView {
-  font-size: 20px;
+  font-size: 24px;
 }
 
 WTrackTableViewHeader::section {
-  font-size: 16px;
+  font-size: 19px;
   text-transform: lowercase;
   padding: 2px 4px;
 }
 
 /* Wider than the default: a scrollbar is also a drag target here. */
 #LibraryContainer QScrollBar:vertical {
-  width: 14px;
+  width: 24px;
 }
 
 #LibraryContainer QScrollBar:horizontal {
-  height: 14px;
+  height: 24px;
 }
 
 /************** menus, popups, tooltips **************************************/
@@ -451,11 +460,11 @@ WTrackTableViewHeader QMenu,
 WSearchLineEdit QMenu,
 QMenu QCheckBox,
 QToolTip {
-  font-size: 18px;
+  font-size: 22px;
 }
 
 QMenu::item {
-  padding: 10px 18px;
+  padding: 12px 20px;
 }
 
 /* The checkbox rows (show/hide columns, add to crate or playlist) are widgets,
@@ -467,8 +476,8 @@ QMenu QCheckBox {
 }
 
 QMenu QCheckBox::indicator {
-  width: 14px;
-  height: 14px;
+  width: 20px;
+  height: 20px;
 }
 
 /************** options page *************************************************/
@@ -482,7 +491,7 @@ QMenu QCheckBox::indicator {
 }
 
 #OptionsSection {
-  font-size: 17px;
+  font-size: 20px;
   font-weight: bold;
   text-transform: lowercase;
   margin-bottom: 4px;
@@ -494,13 +503,13 @@ QMenu QCheckBox::indicator {
 }
 
 #OptionCaption {
-  font-size: 20px;
+  font-size: 24px;
   text-transform: lowercase;
   qproperty-alignment: 'AlignLeft | AlignVCenter';
 }
 
 #OptionRow WPushButton {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: bold;
   text-transform: lowercase;
   margin: 1px;
@@ -508,7 +517,7 @@ QMenu QCheckBox::indicator {
 }
 
 #OptionsNote {
-  font-size: 15px;
+  font-size: 18px;
   text-transform: lowercase;
   margin-top: 6px;
   qproperty-alignment: 'AlignLeft | AlignVCenter';

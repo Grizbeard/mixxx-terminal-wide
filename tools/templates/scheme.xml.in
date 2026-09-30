@@ -93,10 +93,11 @@
       <!-- WKnobComposed centres the arc on the widget at this radius, so the
            knob has to be at least 2*ArcRadius + ArcThickness in both
            directions or the arc is clipped: 20 and 5 wanted 45px out of a 44px
-           knob, which is exactly the sliver that went missing. -->
-      <SetVariable name="ArcRadius">16</SetVariable>
-      <SetVariable name="ArcThickness">4</SetVariable>
-      <SetVariable name="ArcBgThickness">4</SetVariable>
+           knob, which is exactly the sliver that went missing. 21 and 5 want
+           47px, and the smallest knob is now 52. -->
+      <SetVariable name="ArcRadius">21</SetVariable>
+      <SetVariable name="ArcThickness">5</SetVariable>
+      <SetVariable name="ArcBgThickness">5</SetVariable>
       <SetVariable name="ArcBgColor">{{border_lit}}</SetVariable>
       <!-- Square caps: a terminal meter has no rounded ends. -->
       <SetVariable name="ArcRoundCaps">false</SetVariable>

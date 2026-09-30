@@ -21,14 +21,14 @@
     <!-- A fixed width, so the rows of four in fx_slot.xml line up as a grid:
          a row with two parameters would otherwise spread them wider than a
          row with four. Four of these fill a third of the panel. -->
-    <MinimumSize>150,62</MinimumSize>
+    <MinimumSize>150,74</MinimumSize>
     <MaximumSize>150,</MaximumSize>
     <Children>
       <EffectPushButton>
         <ObjectName>FxParamButton</ObjectName>
         <TooltipId>EffectSlot_button_parameter</TooltipId>
         <SizePolicy>me,f</SizePolicy>
-        <Size>0me,44f</Size>
+        <Size>0me,52f</Size>
         <NumberStates>2</NumberStates>
         <RightClickIsPushButton>false</RightClickIsPushButton>
         <EffectUnitGroup><Variable name="FxUnitGroup"/></EffectUnitGroup>
@@ -44,7 +44,7 @@
       <EffectButtonParameterName>
         <ObjectName>FxKnobLabel</ObjectName>
         <SizePolicy>me,f</SizePolicy>
-        <Size>0me,18f</Size>
+        <Size>0me,22f</Size>
         <EffectUnitGroup><Variable name="FxUnitGroup"/></EffectUnitGroup>
         <Effect><Variable name="FxNum"/></Effect>
         <EffectButtonParameter><Variable name="FxParameter"/></EffectButtonParameter>

@@ -33,7 +33,7 @@ off  - vinyl control disabled
 ok   - timecode locked and tracking
 warn - signal degraded (stylus, level, worn record)
 err  - no usable timecode</Tooltip>
-    <Size>96f,30f</Size>
+    <Size>108f,32f</Size>
     <NumberStates>4</NumberStates>
     <State>
       <Number>0</Number>

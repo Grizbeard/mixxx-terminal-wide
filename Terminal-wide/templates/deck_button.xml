@@ -16,8 +16,8 @@
   <PushButton>
     <ObjectName><Variable name="ObjectName"/></ObjectName>
     <TooltipId><Variable name="TooltipId"/></TooltipId>
-    <SizePolicy>me,f</SizePolicy>
-    <Size>0me,50f</Size>
+    <SizePolicy>me,me</SizePolicy>
+    <Size>0me,50me</Size>
     <NumberStates>2</NumberStates>
     <State>
       <Number>0</Number>

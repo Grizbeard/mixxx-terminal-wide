@@ -30,9 +30,9 @@
         <ObjectName>FxUnitHeader</ObjectName>
         <Layout>horizontal</Layout>
         <!-- The unit's own knobs live in this row rather than one of their
-             own: a row costs 78px, and three slots of parameters want it
+             own: a row costs 90px, and three slots of parameters want it
              more than a second line of unit controls does. -->
-        <Size>0me,68f</Size>
+        <Size>0me,82f</Size>
         <Children>
           <!-- The unit picker. It stands where the unit's name used to, and
                is its name: the lit button says which unit the rest of the
@@ -40,7 +40,7 @@
           <WidgetGroup>
             <ObjectName>FxUnitTabs</ObjectName>
             <Layout>horizontal</Layout>
-            <Size>308f,42f</Size>
+            <Size>344f,52f</Size>
             <Children>
               <Template src="skin:templates/fx_unit_tab.xml">
                 <SetVariable name="FxUnit">1</SetVariable>
@@ -64,7 +64,7 @@
           <PushButton>
             <ObjectName>FxUnitEnable</ObjectName>
             <TooltipId>EffectUnit_enabled</TooltipId>
-            <Size>76f,42f</Size>
+            <Size>84f,52f</Size>
             <NumberStates>2</NumberStates>
             <State><Number>0</Number><Text>on</Text></State>
             <State><Number>1</Number><Text>on</Text></State>
@@ -76,7 +76,7 @@
           <PushButton>
             <ObjectName>FxMixMode</ObjectName>
             <TooltipId>EffectUnit_mix_mode</TooltipId>
-            <Size>84f,42f</Size>
+            <Size>92f,52f</Size>
             <NumberStates>2</NumberStates>
             <State><Number>0</Number><Text>d/w</Text></State>
             <State><Number>1</Number><Text>d+w</Text></State>
@@ -110,7 +110,7 @@
           <PushButton>
             <ObjectName>FxKnobTarget</ObjectName>
             <Tooltip>Which knob the controller's effect knob turns for this unit: the super knob or dry/wet.</Tooltip>
-            <Size>150f,42f</Size>
+            <Size>176f,52f</Size>
             <NumberStates>2</NumberStates>
             <State><Number>0</Number><Text>knob: super</Text></State>
             <State><Number>1</Number><Text>knob: d/w</Text></State>
@@ -135,31 +135,31 @@
             <ObjectName>FxPresetSelector</ObjectName>
             <TooltipId>EffectUnit_chain_selector</TooltipId>
             <SizePolicy>me,f</SizePolicy>
-            <Size>0me,42f</Size>
+            <Size>0me,52f</Size>
             <EffectUnit><Variable name="FxUnit"/></EffectUnit>
           </EffectChainPresetSelector>
 
           <EffectChainPresetButton>
             <ObjectName>FxPresetButton</ObjectName>
             <TooltipId>EffectUnit_chain_preset_menu</TooltipId>
-            <Size>76f,42f</Size>
+            <Size>84f,52f</Size>
             <EffectUnit><Variable name="FxUnit"/></EffectUnit>
           </EffectChainPresetButton>
 
           <Label>
             <ObjectName>FxRouteLabel</ObjectName>
-            <Size>56f,42f</Size>
+            <Size>64f,52f</Size>
             <Text>route</Text>
           </Label>
           <WidgetGroup>
             <ObjectName>FxRouteBox</ObjectName>
             <Layout>horizontal</Layout>
-            <Size>124f,42f</Size>
+            <Size>140f,52f</Size>
             <Children>
               <PushButton>
                 <ObjectName>FxRouteButton</ObjectName>
                 <TooltipId>EffectUnit_deck_enabled</TooltipId>
-                <Size>62f,42f</Size>
+                <Size>70f,52f</Size>
                 <NumberStates>2</NumberStates>
                 <State><Number>0</Number><Text>1</Text></State>
                 <State><Number>1</Number><Text>1</Text></State>
@@ -171,7 +171,7 @@
               <PushButton>
                 <ObjectName>FxRouteButton</ObjectName>
                 <TooltipId>EffectUnit_deck_enabled</TooltipId>
-                <Size>62f,42f</Size>
+                <Size>70f,52f</Size>
                 <NumberStates>2</NumberStates>
                 <State><Number>0</Number><Text>2</Text></State>
                 <State><Number>1</Number><Text>2</Text></State>

@@ -25,26 +25,23 @@
   <WidgetGroup>
     <ObjectName>DvsControls</ObjectName>
     <Layout>vertical</Layout>
-    <Size>0me,74f</Size>
+    <Size>0me,52me</Size>
     <Children>
 
-      <Label>
-        <ObjectName>DeckFieldLabel</ObjectName>
-        <Size>0me,18f</Size>
-        <Text>timecode</Text>
-      </Label>
-
+      <!-- No "timecode" caption over the row: vinyl, rel, drop and thru
+           explain themselves, and the 18px it took is more use as height for
+           the buttons. -->
       <WidgetGroup>
         <ObjectName>DvsControlsRow</ObjectName>
         <Layout>horizontal</Layout>
-        <Size>0me,52f</Size>
+        <Size>0me,52me</Size>
         <Children>
 
           <PushButton>
             <ObjectName>VinylEnableButton</ObjectName>
             <TooltipId>vinylcontrol_enabled</TooltipId>
-            <SizePolicy>me,f</SizePolicy>
-            <Size>0me,50f</Size>
+            <SizePolicy>me,me</SizePolicy>
+            <Size>0me,50me</Size>
             <NumberStates>2</NumberStates>
             <State><Number>0</Number><Text>vinyl</Text></State>
             <State><Number>1</Number><Text>vinyl</Text></State>
@@ -57,8 +54,8 @@
           <PushButton>
             <ObjectName>VinylModeButton</ObjectName>
             <TooltipId>vinylcontrol_mode</TooltipId>
-            <SizePolicy>me,f</SizePolicy>
-            <Size>0me,50f</Size>
+            <SizePolicy>me,me</SizePolicy>
+            <Size>0me,50me</Size>
             <NumberStates>3</NumberStates>
             <State><Number>0</Number><Text>abs</Text></State>
             <State><Number>1</Number><Text>rel</Text></State>
@@ -72,8 +69,8 @@
           <PushButton>
             <ObjectName>VinylCueButton</ObjectName>
             <TooltipId>vinylcontrol_cueing</TooltipId>
-            <SizePolicy>me,f</SizePolicy>
-            <Size>0me,50f</Size>
+            <SizePolicy>me,me</SizePolicy>
+            <Size>0me,50me</Size>
             <NumberStates>3</NumberStates>
             <State><Number>0</Number><Text>drop</Text></State>
             <State><Number>1</Number><Text>cue</Text></State>
@@ -87,8 +84,8 @@
           <PushButton>
             <ObjectName>VinylPassthroughButton</ObjectName>
             <TooltipId>passthrough_enabled</TooltipId>
-            <SizePolicy>me,f</SizePolicy>
-            <Size>0me,50f</Size>
+            <SizePolicy>me,me</SizePolicy>
+            <Size>0me,50me</Size>
             <NumberStates>2</NumberStates>
             <State><Number>0</Number><Text>thru</Text></State>
             <State><Number>1</Number><Text>thru</Text></State>

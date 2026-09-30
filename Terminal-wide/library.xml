@@ -28,7 +28,7 @@
       <WidgetGroup>
         <ObjectName>SearchRow</ObjectName>
         <Layout>horizontal</Layout>
-        <Size>0me,40f</Size>
+        <Size>0me,50f</Size>
         <Children>
           <WidgetGroup>
             <ObjectName>SearchLineBox</ObjectName>
