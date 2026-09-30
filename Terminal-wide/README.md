@@ -288,6 +288,14 @@ controls before it stops being a status line, and less than that now that it
 runs only the width of the waveform column; this page has most of a 1920×480
 panel spare.
 
+One row is not a setting. Under *system*, **power → shut down** is a momentary
+button on `[App],shutdown` (patch 0015). It never shuts down by itself: it
+raises a "Shut down now?" prompt with Cancel as the default, and only answering
+Shut Down quits Mixxx. The appliance's kiosk supervisor then powers the Pi off.
+It is drawn in the record colour, unfilled, so it doesn't read as another
+setting. Without the patch the control does not exist and the button does
+nothing.
+
 Each row is a caption and one cycling button, and the button's label *is* the
 readout — no radio groups, one 44px target per setting.
 

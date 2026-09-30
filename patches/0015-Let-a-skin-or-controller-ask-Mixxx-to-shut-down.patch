@@ -1,0 +1,149 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Tue, 29 Sep 2026 22:12:52 -0500
+Subject: [PATCH 15/15] Let a skin or controller ask Mixxx to shut down
+
+[AI-generated text: this description was written autonomously by an AI
+agent (Claude). Review it before relying on it or submitting it.]
+
+A touchscreen setup with no menu bar and no keyboard has no way to quit
+Mixxx. On the DJM-T1 appliance, quitting is also how the box is turned
+off: its kiosk supervisor powers the Pi down when Mixxx exits cleanly.
+
+[App],shutdown is a push button the main window owns. Pressing it asks
+"Shut down now?" ("Anything playing will stop.") with Cancel as the
+default, and Shut Down closes the main window. That answer stands in for
+confirmExit()'s questions about playing decks and samplers, so the user
+is asked once, not twice. The open-preferences question still applies,
+and if confirmExit() refuses, nothing changes.
+
+The connection is queued, so the prompt's event loop starts after the
+button that set the control has handled its press. The slot sets the
+control back to 0 itself, because the modal prompt can swallow the
+button's release and leave it drawn pressed.
+
+Built on the appliance Pi (aarch64, RelWithDebInfo) with no warnings.
+The Terminal-wide skin's options page shows the button there. The
+prompt and the power-off were left for a hand test on the panel.
+
+[End of AI-generated text.]
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/mixxxmainwindow.cpp | 44 ++++++++++++++++++++++++++++++++++++++++-
+ src/mixxxmainwindow.h   | 11 +++++++++++
+ 2 files changed, 54 insertions(+), 1 deletion(-)
+
+diff --git a/src/mixxxmainwindow.cpp b/src/mixxxmainwindow.cpp
+index 52d903c0..abb77760 100644
+--- a/src/mixxxmainwindow.cpp
++++ b/src/mixxxmainwindow.cpp
+@@ -35,6 +35,7 @@
+ #include "broadcast/broadcastmanager.h"
+ #endif
+ #include "control/controlindicatortimer.h"
++#include "control/controlpushbutton.h"
+ #include "library/library.h"
+ #include "library/library_decl.h"
+ #include "library/library_prefs.h"
+@@ -116,6 +117,16 @@ MixxxMainWindow::MixxxMainWindow(std::shared_ptr<mixxx::CoreServices> pCoreServi
+             this,
+             &MixxxMainWindow::slotLibraryScanSummaryDlg);
+ 
++    m_pShutdownRequest = std::make_unique<ControlPushButton>(
++            ConfigKey(QStringLiteral("[App]"), QStringLiteral("shutdown")));
++    // Queued, so the prompt's event loop runs after the button that set the
++    // control has finished handling its press.
++    connect(m_pShutdownRequest.get(),
++            &ControlObject::valueChanged,
++            this,
++            &MixxxMainWindow::slotShutdownRequested,
++            Qt::QueuedConnection);
++
+     createMenuBar();
+     m_pMenuBar->hide();
+ 
+@@ -1605,7 +1616,9 @@ bool MixxxMainWindow::confirmExit() {
+             break;
+         }
+     }
+-    if (playing) {
++    if (m_shutdownConfirmed) {
++        // slotShutdownRequested() has already asked, and said playback stops
++    } else if (playing) {
+         QMessageBox::StandardButton btn = QMessageBox::question(this,
+             tr("Confirm Exit"),
+             tr("A deck is currently playing. Exit Mixxx?"),
+@@ -1639,6 +1652,35 @@ bool MixxxMainWindow::confirmExit() {
+     return true;
+ }
+ 
++void MixxxMainWindow::slotShutdownRequested(double value) {
++    // A push button sets 1 on press and 0 on release; only the press asks.
++    if (value <= 0 || m_shutdownPromptOpen) {
++        return;
++    }
++    m_shutdownPromptOpen = true;
++    // The prompt is modal, so the button's release may never reach it. Let
++    // go on its behalf, or it stays drawn pressed behind the prompt.
++    m_pShutdownRequest->set(0.0);
++    QMessageBox msg(this);
++    msg.setIcon(QMessageBox::Warning);
++    msg.setWindowTitle(tr("Shut Down"));
++    msg.setText(tr("Shut down now?"));
++    msg.setInformativeText(tr("Anything playing will stop."));
++    QPushButton* pShutdownBtn = msg.addButton(tr("Shut Down"), QMessageBox::AcceptRole);
++    QPushButton* pCancelBtn = msg.addButton(QMessageBox::Cancel);
++    msg.setDefaultButton(pCancelBtn);
++    msg.exec();
++    m_shutdownPromptOpen = false;
++    if (msg.clickedButton() != pShutdownBtn) {
++        return;
++    }
++    m_shutdownConfirmed = true;
++    if (!close()) {
++        // confirmExit() can still refuse, e.g. over open preferences
++        m_shutdownConfirmed = false;
++    }
++}
++
+ void MixxxMainWindow::initializationProgressUpdate(int progress, const QString& serviceName) {
+     if (m_pLaunchImage) {
+         m_pLaunchImage->progress(progress, serviceName);
+diff --git a/src/mixxxmainwindow.h b/src/mixxxmainwindow.h
+index 4a26a43a..e3c9f095 100644
+--- a/src/mixxxmainwindow.h
++++ b/src/mixxxmainwindow.h
+@@ -10,6 +10,7 @@
+ #include "util/parented_ptr.h"
+ 
+ class ControlObject;
++class ControlPushButton;
+ class DlgDeveloperTools;
+ class DlgPreferences;
+ class DlgKeywheel;
+@@ -91,6 +92,8 @@ class MixxxMainWindow : public QMainWindow {
+ 
+   private slots:
+     void slotTooltipModeChanged(mixxx::preferences::Tooltips tt);
++    /// ask whether to shut down, and close the window if the answer is yes
++    void slotShutdownRequested(double value);
+ 
+   signals:
+     void skinLoaded();
+@@ -162,4 +165,12 @@ class MixxxMainWindow : public QMainWindow {
+     mixxx::preferences::ScreenSaver m_inhibitScreensaver;
+ 
+     QSet<ControlObject*> m_skinCreatedControls;
++
++    /// [App],shutdown: lets a skin or controller quit Mixxx, for setups with
++    /// no menu bar or keyboard
++    std::unique_ptr<ControlPushButton> m_pShutdownRequest;
++    bool m_shutdownPromptOpen = false;
++    /// set once the shutdown prompt was answered yes, so confirmExit() doesn't
++    /// ask about playing decks a second time
++    bool m_shutdownConfirmed = false;
+ };
+-- 
+2.53.0.windows.3
+

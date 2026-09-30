@@ -454,6 +454,21 @@ WTrackProperty,
   color: #f7f7f8;
 }
 
+/* Shut down turns the appliance off, so it does not wear the muted fill of
+   the settings around it: the record colour on black, filled while pressed.
+   The press only raises a prompt; the prompt is what shuts down. */
+#Mixxx #OptionRow WPushButton#OptShutdown[displayValue="0"] {
+  background-color: #000000;
+  border: 1px solid #e4e6e7;
+  color: #e4e6e7;
+}
+
+#Mixxx #OptionRow WPushButton#OptShutdown[displayValue="1"] {
+  background-color: #e4e6e7;
+  border: 1px solid #e4e6e7;
+  color: #000000;
+}
+
 #OptionsSection {
   color: #e4e6e7;
   background: transparent;

@@ -89,6 +89,48 @@
             <SetVariable name="Text3">72 px</SetVariable>
           </Template>
 
+          <Label>
+            <ObjectName>OptionsSection</ObjectName>
+            <Size>0me,26f</Size>
+            <Text>system</Text>
+          </Label>
+
+          <!-- Laid out like an option_row.xml row, but not one: that template's
+               button cycles a persisted setting. This is a momentary push on
+               [App],shutdown (patch 0015), which only raises Mixxx's "Shut down
+               now?" prompt. Answering yes quits Mixxx, and on the appliance
+               the kiosk supervisor powers the Pi off when Mixxx exits cleanly.
+               Without the patch the control does not exist and the button does
+               nothing. -->
+          <WidgetGroup>
+            <ObjectName>OptionRow</ObjectName>
+            <Layout>horizontal</Layout>
+            <Size>0me,46f</Size>
+            <Children>
+
+              <Label>
+                <ObjectName>OptionCaption</ObjectName>
+                <Size>0me,44f</Size>
+                <Text>power</Text>
+              </Label>
+
+              <PushButton>
+                <ObjectName>OptShutdown</ObjectName>
+                <Size>190f,44f</Size>
+                <NumberStates>1</NumberStates>
+                <State>
+                  <Number>0</Number>
+                  <Text>shut down</Text>
+                </State>
+                <Connection>
+                  <ConfigKey>[App],shutdown</ConfigKey>
+                  <ButtonState>LeftButton</ButtonState>
+                </Connection>
+              </PushButton>
+
+            </Children>
+          </WidgetGroup>
+
           <WidgetGroup>
             <ObjectName>OptionsFiller</ObjectName>
             <Layout>vertical</Layout>
