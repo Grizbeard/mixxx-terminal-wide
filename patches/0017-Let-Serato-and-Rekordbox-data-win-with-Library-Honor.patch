@@ -1,0 +1,705 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Fri, 2 Oct 2026 14:58:10 -0500
+Subject: [PATCH 17/17] Let Serato and Rekordbox data win, with
+ [Library],HonorExternalMetadata
+
+[AI-generated text: this description was written autonomously by an AI
+agent (Claude). Review it before relying on it or submitting it.]
+
+Mixxx reads a file's tags, Serato's grid and cues included, once: later
+changes are only read back with file tag sync on, Serato data only with
+Serato metadata export on too (both make Mixxx write into the files), and
+then existing hot cues still stop Serato's cues from being imported.
+Rekordbox grids are re-applied on every load from the Rekordbox view, but
+not over a BPM lock, and hot cues deleted in Rekordbox stay.
+
+With HonorExternalMetadata (off by default; no preferences UI) the other
+library wins whenever its data changes, and Mixxx writes nothing:
+- a file modified since its tags were last read is read again when its
+  track is loaded, Serato data included;
+- a re-read Serato grid replaces the track's even if the BPM is locked,
+  and Serato's cues replace Mixxx's cues of the same types; cue types
+  Serato has no word for (intro, outro, ...) stay;
+- loaded from the Rekordbox view, a track takes Rekordbox's grid over a
+  BPM lock, and loses hot cues Rekordbox no longer has.
+
+Track::tryImportBeats() and importCueInfos() gain the flags for this,
+off by default.
+
+Tested on Windows: new tests for the re-read of a changed file with
+only this setting on, and for the grid and cue imports with and
+without their overrides, pass with the existing track, sync and Serato
+tests. Not yet tried against a library Serato or Rekordbox changed.
+
+[End of AI-generated text.]
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/library/dao/trackdao.cpp               |   9 ++
+ src/library/library_prefs.cpp              |   5 +
+ src/library/library_prefs.h                |   6 +
+ src/library/rekordbox/rekordboxfeature.cpp |  91 +++++++++++---
+ src/library/rekordbox/rekordboxfeature.h   |   6 +-
+ src/sources/soundsourceproxy.cpp           |   7 +-
+ src/test/synctrackmetadatatest.cpp         |  23 ++++
+ src/test/trackupdate_test.cpp              | 133 +++++++++++++++++++++
+ src/track/track.cpp                        |  29 ++++-
+ src/track/track.h                          |  18 ++-
+ src/track/track_decl.h                     |   3 +
+ 11 files changed, 302 insertions(+), 28 deletions(-)
+
+diff --git a/src/library/dao/trackdao.cpp b/src/library/dao/trackdao.cpp
+index 470409cd..6da78c48 100644
+--- a/src/library/dao/trackdao.cpp
++++ b/src/library/dao/trackdao.cpp
+@@ -1590,6 +1590,15 @@ TrackPointer TrackDAO::getTrackById(TrackId trackId) const {
+         updateTrackFromSourceMode =
+                 SoundSourceProxy::UpdateTrackFromSourceMode::Newer;
+     }
++    if (m_pConfig &&
++            m_pConfig->getValue(
++                    mixxx::library::prefs::kHonorExternalMetadataConfigKey,
++                    false)) {
++        // Re-import what Serato (or anything else) wrote into a modified
++        // file, without exporting Mixxx's own metadata into the files.
++        updateTrackFromSourceMode =
++                SoundSourceProxy::UpdateTrackFromSourceMode::Newer;
++    }
+     DEBUG_ASSERT(!pTrack->isDirty());
+     const auto sourceSynchronizedAtBefore = pTrack->getSourceSynchronizedAt();
+     const auto result =
+diff --git a/src/library/library_prefs.cpp b/src/library/library_prefs.cpp
+index 282cba04..460b9562 100644
+--- a/src/library/library_prefs.cpp
++++ b/src/library/library_prefs.cpp
+@@ -105,6 +105,11 @@ const ConfigKey mixxx::library::prefs::kSyncSeratoMetadataConfigKey =
+                 mixxx::library::prefs::kConfigGroup,
+                 QStringLiteral("SeratoMetadataExport")};
+ 
++const ConfigKey mixxx::library::prefs::kHonorExternalMetadataConfigKey =
++        ConfigKey{
++                mixxx::library::prefs::kConfigGroup,
++                QStringLiteral("HonorExternalMetadata")};
++
+ const ConfigKey mixxx::library::prefs::kUseRelativePathOnExportConfigKey =
+         ConfigKey{
+                 mixxx::library::prefs::kConfigGroup,
+diff --git a/src/library/library_prefs.h b/src/library/library_prefs.h
+index 940faba9..7c82ac6f 100644
+--- a/src/library/library_prefs.h
++++ b/src/library/library_prefs.h
+@@ -58,6 +58,12 @@ extern const ConfigKey kResetMissingTagMetadataOnImportConfigKey;
+ 
+ extern const ConfigKey kSyncSeratoMetadataConfigKey;
+ 
++/// Serato and Rekordbox data replaces Mixxx's own whenever it changes: a
++/// file modified since its tags were last read is read again, Serato grid
++/// and cues included, and Rekordbox grids and hot cues are applied on every
++/// load, also over a BPM lock. Nothing is written to the files.
++extern const ConfigKey kHonorExternalMetadataConfigKey;
++
+ extern const ConfigKey kUseRelativePathOnExportConfigKey;
+ 
+ extern const ConfigKey kCoverArtFetcherQualityConfigKey;
+diff --git a/src/library/rekordbox/rekordboxfeature.cpp b/src/library/rekordbox/rekordboxfeature.cpp
+index 3e8e6228..18cb772f 100644
+--- a/src/library/rekordbox/rekordboxfeature.cpp
++++ b/src/library/rekordbox/rekordboxfeature.cpp
+@@ -16,6 +16,7 @@
+ #include "engine/engine.h"
+ #include "library/dao/trackschema.h"
+ #include "library/library.h"
++#include "library/library_prefs.h"
+ #include "library/queryutil.h"
+ #include "library/rekordbox/rekordboxconstants.h"
+ #include "library/removabledevicewatcher.h"
+@@ -853,7 +854,11 @@ void setHotCue(TrackPointer track,
+         mixxx::audio::FramePos endPosition,
+         int id,
+         const QString& label,
+-        mixxx::RgbColor::optional_t color) {
++        mixxx::RgbColor::optional_t color,
++        QSet<int>* pHotCuesSet) {
++    if (pHotCuesSet) {
++        pHotCuesSet->insert(id);
++    }
+     CuePointer pCue;
+     const QList<CuePointer> cuePoints = track->getCuePoints();
+     for (const CuePointer& trackCue : cuePoints) {
+@@ -883,14 +888,19 @@ void setHotCue(TrackPointer track,
+     }
+ }
+ 
+-void readAnalyze(TrackPointer track,
++/// Returns whether a list of cues was read. pHotCuesSet collects the
++/// hot cues it set, and overrideBpmLock sets the grid on a locked track too.
++bool readAnalyze(TrackPointer track,
+         mixxx::audio::SampleRate sampleRate,
+         int timingOffset,
+         bool ignoreCues,
+-        const QString& anlzPath) {
++        const QString& anlzPath,
++        bool overrideBpmLock = false,
++        QSet<int>* pHotCuesSet = nullptr) {
+     if (!QFile(anlzPath).exists()) {
+-        return;
++        return false;
+     }
++    bool cuesRead = false;
+ 
+     qDebug() << "Rekordbox ANLZ path:" << anlzPath << " for: " << track->getTitle();
+ 
+@@ -930,7 +940,13 @@ void readAnalyze(TrackPointer track,
+                     sampleRate,
+                     beats,
+                     mixxx::rekordboxconstants::beatsSubversion);
+-            track->trySetBeats(pBeats);
++            if (overrideBpmLock && track->isBpmLocked()) {
++                track->setBpmLocked(false);
++                track->trySetBeats(pBeats);
++                track->setBpmLocked(true);
++            } else {
++                track->trySetBeats(pBeats);
++            }
+         } break;
+         case rekordbox_anlz_t::SECTION_TAGS_CUES: {
+             if (ignoreCues) {
+@@ -940,6 +956,7 @@ void readAnalyze(TrackPointer track,
+             auto* cuesTag =
+                     static_cast<rekordbox_anlz_t::cue_tag_t*>(
+                             section->body());
++            cuesRead = true;
+ 
+             for (const auto& cueEntry : *cuesTag->cues()) {
+                 int time = static_cast<int>(cueEntry->time()) - timingOffset;
+@@ -987,7 +1004,8 @@ void readAnalyze(TrackPointer track,
+                             mixxx::audio::kInvalidFramePos,
+                             hotCueIndex,
+                             QString(),
+-                            mixxx::RgbColor::nullopt());
++                            mixxx::RgbColor::nullopt(),
++                            pHotCuesSet);
+                 } break;
+                 }
+             }
+@@ -1000,6 +1018,7 @@ void readAnalyze(TrackPointer track,
+             auto* cuesExtendedTag =
+                     static_cast<rekordbox_anlz_t::cue_extended_tag_t*>(
+                             section->body());
++            cuesRead = true;
+ 
+             for (const auto& cueExtendedEntry : *cuesExtendedTag->cues()) {
+                 int time = static_cast<int>(cueExtendedEntry->time()) - timingOffset;
+@@ -1058,7 +1077,8 @@ void readAnalyze(TrackPointer track,
+                                     static_cast<int>(
+                                             cueExtendedEntry->color_green()),
+                                     static_cast<int>(cueExtendedEntry
+-                                                    ->color_blue()))));
++                                                    ->color_blue()))),
++                            pHotCuesSet);
+                 } break;
+                 }
+             }
+@@ -1099,23 +1119,27 @@ void readAnalyze(TrackPointer track,
+                         memoryCueOrLoop.endPosition,
+                         lastHotCueIndex,
+                         memoryCueOrLoop.comment,
+-                        memoryCueOrLoop.color);
++                        memoryCueOrLoop.color,
++                        pHotCuesSet);
+             }
+         }
+     }
++    return cuesRead;
+ }
+ 
+ } // anonymous namespace
+ 
+ RekordboxPlaylistModel::RekordboxPlaylistModel(QObject* parent,
+         TrackCollectionManager* trackCollectionManager,
+-        QSharedPointer<BaseTrackCache> trackSource)
++        QSharedPointer<BaseTrackCache> trackSource,
++        UserSettingsPointer pConfig)
+         : BaseExternalPlaylistModel(parent,
+                   trackCollectionManager,
+                   "mixxx.db.model.rekordbox.playlistmodel",
+                   kRekordboxPlaylistsTable,
+                   kRekordboxPlaylistTracksTable,
+-                  trackSource) {
++                  trackSource),
++          m_pConfig(std::move(pConfig)) {
+ }
+ 
+ void RekordboxPlaylistModel::initSortColumnMapping() {
+@@ -1282,12 +1306,49 @@ TrackPointer RekordboxPlaylistModel::getTrack(const QModelIndex& index) const {
+                     .toString();
+     QString anlzPathExt = anlzPath.left(anlzPath.length() - 3) + "EXT";
+ 
++    // With HonorExternalMetadata, Rekordbox's grid and hot cues replace
++    // Mixxx's: also on a BPM-locked track, and hot cues Rekordbox no longer
++    // has are removed.
++    const bool honorExternalMetadata = m_pConfig &&
++            m_pConfig->getValue(
++                    mixxx::library::prefs::kHonorExternalMetadataConfigKey,
++                    false);
++    QSet<int> hotCuesSet;
++    QSet<int>* pHotCuesSet = honorExternalMetadata ? &hotCuesSet : nullptr;
++    bool cuesRead;
+     if (QFile(anlzPathExt).exists()) {
+         // Beatgrids appear to be only correct in legacy ANLZ file
+-        readAnalyze(track, sampleRate, timingOffset, true, anlzPath);
+-        readAnalyze(track, sampleRate, timingOffset, false, anlzPathExt);
++        readAnalyze(track,
++                sampleRate,
++                timingOffset,
++                true,
++                anlzPath,
++                honorExternalMetadata,
++                pHotCuesSet);
++        cuesRead = readAnalyze(track,
++                sampleRate,
++                timingOffset,
++                false,
++                anlzPathExt,
++                honorExternalMetadata,
++                pHotCuesSet);
+     } else {
+-        readAnalyze(track, sampleRate, timingOffset, false, anlzPath);
++        cuesRead = readAnalyze(track,
++                sampleRate,
++                timingOffset,
++                false,
++                anlzPath,
++                honorExternalMetadata,
++                pHotCuesSet);
++    }
++    if (honorExternalMetadata && cuesRead) {
++        const QList<CuePointer> cuePoints = track->getCuePoints();
++        for (const CuePointer& pCue : cuePoints) {
++            const int hotCue = pCue->getHotCue();
++            if (hotCue != Cue::kNoHotCue && !hotCuesSet.contains(hotCue)) {
++                track->removeCue(pCue);
++            }
++        }
+     }
+ 
+     // Assume that the key of the file the has been analyzed in Recordbox is correct
+@@ -1363,7 +1424,7 @@ RekordboxFeature::RekordboxFeature(
+             std::move(searchColumns),
+             false);
+     m_pRekordboxPlaylistModel = make_parented<RekordboxPlaylistModel>(
+-            this, pLibrary->trackCollectionManager(), m_trackSource);
++            this, pLibrary->trackCollectionManager(), m_trackSource, m_pConfig);
+ 
+     m_title = tr("Rekordbox");
+ 
+@@ -1449,7 +1510,7 @@ RekordboxFeature::createPlaylistModelForPlaylist(const QVariant& data) {
+         return {};
+     }
+     auto pModel = std::make_unique<RekordboxPlaylistModel>(
+-            this, m_pLibrary->trackCollectionManager(), m_trackSource);
++            this, m_pLibrary->trackCollectionManager(), m_trackSource, m_pConfig);
+     pModel->setPlaylist(playlists.at(0).toString());
+     return pModel;
+ }
+diff --git a/src/library/rekordbox/rekordboxfeature.h b/src/library/rekordbox/rekordboxfeature.h
+index 745a54ea..ee077796 100644
+--- a/src/library/rekordbox/rekordboxfeature.h
++++ b/src/library/rekordbox/rekordboxfeature.h
+@@ -44,13 +44,17 @@ class RekordboxPlaylistModel : public BaseExternalPlaylistModel {
+   public:
+     RekordboxPlaylistModel(QObject* parent,
+             TrackCollectionManager* pTrackCollectionManager,
+-            QSharedPointer<BaseTrackCache> trackSource);
++            QSharedPointer<BaseTrackCache> trackSource,
++            UserSettingsPointer pConfig);
+     TrackPointer getTrack(const QModelIndex& index) const override;
+     bool isColumnHiddenByDefault(int column) override;
+     bool isColumnInternal(int column) override;
+ 
+   protected:
+     void initSortColumnMapping() override;
++
++  private:
++    const UserSettingsPointer m_pConfig;
+ };
+ 
+ class RekordboxFeature : public BaseExternalLibraryFeature {
+diff --git a/src/sources/soundsourceproxy.cpp b/src/sources/soundsourceproxy.cpp
+index 6e9e0bd8..a4f200d0 100644
+--- a/src/sources/soundsourceproxy.cpp
++++ b/src/sources/soundsourceproxy.cpp
+@@ -625,11 +625,11 @@ inline bool shouldImportSeratoTagsFromSource(
+     // Only reimport track metadata from Serato markers if export of
+     // Serato markers is enabled. This should ensure that track color,
+     // cue points, and loops do not get lost after they have been
+-    // modified in Mixxx.
++    // modified in Mixxx. Unless Serato's data is to win anyway.
+     // A reimport of metadata happens if
+     // sourceSyncStatus == mixxx::TrackRecord::SourceSyncStatus::Outdated
+     return sourceSyncStatus != mixxx::TrackRecord::SourceSyncStatus::Outdated ||
+-            syncParams.syncSeratoMetadata;
++            syncParams.syncSeratoMetadata || syncParams.honorExternalMetadata;
+ }
+ 
+ } // namespace
+@@ -843,7 +843,8 @@ SoundSourceProxy::UpdateTrackFromSourceResult SoundSourceProxy::updateTrackFromS
+ 
+     m_pTrack->replaceMetadataFromSource(
+             std::move(trackMetadata),
+-            sourceSynchronizedAt);
++            sourceSynchronizedAt,
++            syncParams.honorExternalMetadata);
+ 
+     const bool pendingBeatsImport =
+             m_pTrack->getBeatsImportStatus() == Track::ImportStatus::Pending;
+diff --git a/src/test/synctrackmetadatatest.cpp b/src/test/synctrackmetadatatest.cpp
+index 83fcedd2..a4cd741f 100644
+--- a/src/test/synctrackmetadatatest.cpp
++++ b/src/test/synctrackmetadatatest.cpp
+@@ -507,6 +507,29 @@ TEST_F(LibraryFileWithMetadataSyncStatusOutdatedTest, reimportTrackMetadataWithS
+             importedTrackRecord.getSourceSynchronizedAt());
+ }
+ 
++TEST_F(LibraryFileWithMetadataSyncStatusOutdatedTest,
++        reimportTrackMetadataWithHonorExternalMetadata) {
++    const mixxx::TrackRecord outdatedTrackRecord =
++            prepareTestTrack()->getRecord();
++
++    const auto syncTrackMetadataConfigScope =
++            SyncTrackMetadataConfigScope(m_pConfig);
++
++    // No sync: Mixxx writes nothing into files, but reads a changed one.
++    syncTrackMetadataConfigScope.setConfig(false);
++    m_pConfig->setValue(mixxx::library::prefs::kHonorExternalMetadataConfigKey, true);
++
++    auto pTrack = loadTrack();
++    m_pConfig->setValue(mixxx::library::prefs::kHonorExternalMetadataConfigKey, false);
++    EXPECT_TRUE(pTrack);
++    const auto importedTrackRecord = pTrack->getRecord();
++    verifySourceSyncStatusOfTrack(
++            *pTrack, mixxx::TrackRecord::SourceSyncStatus::Synchronized);
++    EXPECT_LT(
++            outdatedTrackRecord.getSourceSynchronizedAt(),
++            importedTrackRecord.getSourceSynchronizedAt());
++}
++
+ TEST_F(LibraryFileWithMetadataSyncStatusOutdatedTest, doNotReimportTrackMetadataWithSyncDisabled) {
+     const mixxx::TrackRecord outdatedTrackRecord =
+             prepareTestTrack()->getRecord();
+diff --git a/src/test/trackupdate_test.cpp b/src/test/trackupdate_test.cpp
+index 22c548ae..b90932a4 100644
+--- a/src/test/trackupdate_test.cpp
++++ b/src/test/trackupdate_test.cpp
+@@ -4,6 +4,9 @@
+ #include "sources/soundsourceproxy.h"
+ #include "test/mixxxtest.h"
+ #include "test/soundsourceproviderregistration.h"
++#include "track/beats.h"
++#include "track/beatsimporter.h"
++#include "track/cueinfoimporter.h"
+ #include "track/track.h"
+ 
+ // Test for updating track metadata and cover art from files.
+@@ -148,3 +151,133 @@ TEST_F(TrackUpdateTest, parseModifiedDirtyAgain) {
+ }
+ 
+ // TODO: Add tests for SoundSourceProxy::UpdateTrackFromSourceMode::Newer
++
++namespace {
++
++// Hands over a constant tempo grid once, as a Serato beats importer does.
++class TestBeatsImporter : public mixxx::BeatsImporter {
++  public:
++    explicit TestBeatsImporter(mixxx::Bpm bpm)
++            : m_bpm(bpm) {
++    }
++
++    bool isEmpty() const override {
++        return m_imported;
++    }
++
++    mixxx::BeatsPointer importBeatsAndApplyTimingOffset(
++            const QString& filePath,
++            const QString& fileType,
++            const mixxx::audio::StreamInfo& streamInfo) override {
++        Q_UNUSED(filePath);
++        Q_UNUSED(fileType);
++        m_imported = true;
++        return mixxx::Beats::fromConstTempo(
++                streamInfo.getSignalInfo().getSampleRate(),
++                mixxx::audio::kStartFramePos,
++                m_bpm);
++    }
++
++  private:
++    const mixxx::Bpm m_bpm;
++    bool m_imported = false;
++};
++
++// A parsed test track with its audio opened once, so imports apply at once.
++TrackPointer newTestTrackWithStreamInfo() {
++    auto pTrack = Track::newTemporary(
++            QDir(MixxxTest::getOrInitTestDir().filePath(QStringLiteral("id3-test-data"))),
++            "TOAL_TPE2.mp3");
++    SoundSourceProxy proxy(pTrack);
++    proxy.updateTrackFromSource(
++            SoundSourceProxy::UpdateTrackFromSourceMode::Once,
++            SyncTrackMetadataParams{});
++    auto pAudioSource = proxy.openAudioSource();
++    EXPECT_NE(nullptr, pAudioSource);
++    if (pAudioSource) {
++        pAudioSource->close();
++    }
++    return pTrack;
++}
++
++// A locked track at 100 BPM.
++TrackPointer newLockedTestTrack() {
++    auto pTrack = newTestTrackWithStreamInfo();
++    EXPECT_TRUE(pTrack->trySetBeats(mixxx::Beats::fromConstTempo(
++            pTrack->getSampleRate(), mixxx::audio::kStartFramePos, mixxx::Bpm(100))));
++    pTrack->setBpmLocked(true);
++    return pTrack;
++}
++
++std::unique_ptr<mixxx::CueInfoImporter> hotCue1AtOneSecond() {
++    return std::make_unique<mixxx::CueInfoImporter>(QList<mixxx::CueInfo>{
++            mixxx::CueInfo(mixxx::CueType::HotCue,
++                    1000.0,
++                    std::nullopt,
++                    0,
++                    QString(),
++                    mixxx::RgbColor::nullopt())});
++}
++
++QList<CuePointer> hotCues(const TrackPointer& pTrack) {
++    QList<CuePointer> cues;
++    for (const auto& pCue : pTrack->getCuePoints()) {
++        if (pCue->getType() == mixxx::CueType::HotCue) {
++            cues.append(pCue);
++        }
++    }
++    return cues;
++}
++
++} // namespace
++
++TEST_F(TrackUpdateTest, importedBeatsLeaveALockedGrid) {
++    auto pTrack = newLockedTestTrack();
++    pTrack->tryImportBeats(std::make_shared<TestBeatsImporter>(mixxx::Bpm(128)), false);
++    EXPECT_DOUBLE_EQ(100, pTrack->getBpm());
++    EXPECT_TRUE(pTrack->isBpmLocked());
++}
++
++TEST_F(TrackUpdateTest, importedBeatsCanOverrideALockedGrid) {
++    auto pTrack = newLockedTestTrack();
++    pTrack->tryImportBeats(std::make_shared<TestBeatsImporter>(mixxx::Bpm(128)), true, true);
++    EXPECT_DOUBLE_EQ(128, pTrack->getBpm());
++    // Locked as the import says, here as Serato's flag would.
++    EXPECT_TRUE(pTrack->isBpmLocked());
++
++    auto pUnlocked = newLockedTestTrack();
++    pUnlocked->tryImportBeats(std::make_shared<TestBeatsImporter>(mixxx::Bpm(128)), false, true);
++    EXPECT_DOUBLE_EQ(128, pUnlocked->getBpm());
++    EXPECT_FALSE(pUnlocked->isBpmLocked());
++}
++
++TEST_F(TrackUpdateTest, importedCuesLeaveExistingHotCues) {
++    auto pTrack = newTestTrackWithStreamInfo();
++    const auto position = mixxx::audio::FramePos(100);
++    pTrack->createAndAddCue(
++            mixxx::CueType::HotCue, 0, position, mixxx::audio::kInvalidFramePos);
++    pTrack->importCueInfos(hotCue1AtOneSecond());
++    const auto cues = hotCues(pTrack);
++    ASSERT_EQ(1, cues.size());
++    EXPECT_EQ(position, cues.first()->getPosition());
++}
++
++TEST_F(TrackUpdateTest, importedCuesCanReplaceExistingHotCues) {
++    auto pTrack = newTestTrackWithStreamInfo();
++    pTrack->createAndAddCue(mixxx::CueType::HotCue,
++            0,
++            mixxx::audio::FramePos(100),
++            mixxx::audio::kInvalidFramePos);
++    pTrack->createAndAddCue(mixxx::CueType::HotCue,
++            3,
++            mixxx::audio::FramePos(200),
++            mixxx::audio::kInvalidFramePos);
++    pTrack->importCueInfos(hotCue1AtOneSecond(), true);
++    const auto cues = hotCues(pTrack);
++    // Only what was imported: the cue on hot cue 4 is gone too.
++    ASSERT_EQ(1, cues.size());
++    EXPECT_EQ(0, cues.first()->getHotCue());
++    EXPECT_NEAR(pTrack->getSampleRate().value(),
++            cues.first()->getPosition().value(),
++            1.0);
++}
+diff --git a/src/track/track.cpp b/src/track/track.cpp
+index c87d69d7..da507573 100644
+--- a/src/track/track.cpp
++++ b/src/track/track.cpp
+@@ -84,6 +84,8 @@ SyncTrackMetadataParams SyncTrackMetadataParams::readFromUserSettings(
+                             mixxx::library::prefs::kResetMissingTagMetadataOnImportConfigKey),
+             .syncSeratoMetadata = userSettings.getValue<bool>(
+                     mixxx::library::prefs::kSyncSeratoMetadataConfigKey),
++            .honorExternalMetadata = userSettings.getValue<bool>(
++                    mixxx::library::prefs::kHonorExternalMetadataConfigKey),
+     };
+ }
+ 
+@@ -157,7 +159,8 @@ void Track::relocate(
+ 
+ void Track::replaceMetadataFromSource(
+         mixxx::TrackMetadata importedMetadata,
+-        const QDateTime& sourceSynchronizedAt) {
++        const QDateTime& sourceSynchronizedAt,
++        bool externalMetadataWins) {
+     // Information stored in Serato tags is imported separately after
+     // importing the metadata (see below). The Serato tags BLOB itself
+     // is updated together with the metadata.
+@@ -257,11 +260,13 @@ void Track::replaceMetadataFromSource(
+     // as a post-processing step.
+     if (pSeratoBeatsImporter) {
+         kLogger.debug() << "Importing Serato beats";
+-        tryImportBeats(std::move(pSeratoBeatsImporter), seratoBpmLocked);
++        tryImportBeats(std::move(pSeratoBeatsImporter),
++                seratoBpmLocked,
++                externalMetadataWins);
+     }
+     if (pSeratoCuesImporter) {
+         kLogger.debug() << "Importing Serato cues";
+-        importCueInfos(std::move(pSeratoCuesImporter));
++        importCueInfos(std::move(pSeratoCuesImporter), externalMetadataWins);
+     }
+ }
+ 
+@@ -1239,7 +1244,8 @@ void Track::setCuePoints(const QList<CuePointer>& cuePoints) {
+ 
+ Track::ImportStatus Track::tryImportBeats(
+         mixxx::BeatsImporterPointer pBeatsImporter,
+-        bool lockBpmAfterSet) {
++        bool lockBpmAfterSet,
++        bool overrideBpmLock) {
+     auto locked = lockMutex(&m_qMutex);
+     VERIFY_OR_DEBUG_ASSERT(pBeatsImporter) {
+         return ImportStatus::Complete;
+@@ -1249,7 +1255,12 @@ Track::ImportStatus Track::tryImportBeats(
+     if (m_pBeatsImporterPending->isEmpty()) {
+         m_pBeatsImporterPending.reset();
+         return ImportStatus::Complete;
+-    } else if (m_record.hasStreamInfoFromSource()) {
++    }
++    if (overrideBpmLock) {
++        // Import as if unlocked; lockBpmAfterSet locks it again.
++        compareAndSet(m_record.ptrBpmLocked(), false);
++    }
++    if (m_record.hasStreamInfoFromSource()) {
+         // Replace existing beats with imported beats immediately
+         tryImportPendingBeatsMarkDirtyAndUnlock(&locked, lockBpmAfterSet);
+         return ImportStatus::Complete;
+@@ -1327,7 +1338,8 @@ bool Track::tryImportPendingBeatsMarkDirtyAndUnlock(
+ }
+ 
+ Track::ImportStatus Track::importCueInfos(
+-        std::unique_ptr<mixxx::CueInfoImporter> pCueInfoImporter) {
++        std::unique_ptr<mixxx::CueInfoImporter> pCueInfoImporter,
++        bool replaceExistingCues) {
+     auto locked = lockMutex(&m_qMutex);
+     VERIFY_OR_DEBUG_ASSERT(pCueInfoImporter && !pCueInfoImporter->isEmpty()) {
+         // Just return the current import status without clearing any
+@@ -1336,6 +1348,7 @@ Track::ImportStatus Track::importCueInfos(
+     }
+     DEBUG_ASSERT(!m_pCueInfoImporterPending);
+     m_pCueInfoImporterPending = std::move(pCueInfoImporter);
++    m_replaceCuesOnPendingImport = replaceExistingCues;
+     if (m_record.hasStreamInfoFromSource()) {
+         // Replace existing cue points with imported cue
+         // points immediately
+@@ -1426,9 +1439,13 @@ bool Track::importPendingCueInfosWhileLocked() {
+     // user data that cannot be expressed in Serato. https://github.com/mixxxdj/mixxx/issues/11530
+     // For now the save route is to skip the imports if Mixxx cues already exist.
+     // TODO() Consider a merge strategy.
++    const bool replaceExistingCues = m_replaceCuesOnPendingImport;
++    m_replaceCuesOnPendingImport = false;
+     for (const CuePointer& pCue : std::as_const(m_cuePoints)) {
+         if (!m_pCueInfoImporterPending->hasCueOfType(pCue->getType())) {
+             cuePoints.append(pCue);
++        } else if (replaceExistingCues) {
++            // Dropped here, replaced by the imported cues of its type.
+         } else {
+             qWarning() << "Skipping import of Serato cues because Mixxx "
+                           "Hotcues are already set. Reset them first via the "
+diff --git a/src/track/track.h b/src/track/track.h
+index cb12cc42..2be2150d 100644
+--- a/src/track/track.h
++++ b/src/track/track.h
+@@ -371,8 +371,12 @@ class Track : public QObject {
+     ///
+     /// If the list is empty it tries to complete any pending
+     /// import and returns the corresponding status.
++    ///
++    /// Existing cues of a type the importer has stop the import, unless
++    /// replaceExistingCues is set: then they are replaced.
+     ImportStatus importCueInfos(
+-            std::unique_ptr<mixxx::CueInfoImporter> pCueInfoImporter);
++            std::unique_ptr<mixxx::CueInfoImporter> pCueInfoImporter,
++            bool replaceExistingCues = false);
+     ImportStatus getCueImportStatus() const;
+ 
+     bool isDirty() const;
+@@ -397,9 +401,11 @@ class Track : public QObject {
+     ///
+     /// If the list is empty it tries to complete any pending
+     /// import and returns the corresponding status.
++    /// overrideBpmLock imports the beats even if the BPM is locked.
+     ImportStatus tryImportBeats(
+             mixxx::BeatsImporterPointer pBeatsImporter,
+-            bool lockBpmAfterSet);
++            bool lockBpmAfterSet,
++            bool overrideBpmLock = false);
+     ImportStatus getBeatsImportStatus() const;
+ 
+     void resetKeys();
+@@ -422,9 +428,13 @@ class Track : public QObject {
+     ///
+     /// The timestamp tracks when metadata has last been synchronized
+     /// with file tags, either by importing or exporting the metadata.
++    ///
++    /// With externalMetadataWins, the Serato grid and cues in the imported
++    /// metadata replace the track's, also over a BPM lock and existing cues.
+     void replaceMetadataFromSource(
+             mixxx::TrackMetadata importedMetadata,
+-            const QDateTime& sourceSynchronizedAt);
++            const QDateTime& sourceSynchronizedAt,
++            bool externalMetadataWins = false);
+ 
+     mixxx::TrackMetadata getMetadata(
+             mixxx::TrackRecord::SourceSyncStatus*
+@@ -637,6 +647,8 @@ class Track : public QObject {
+ 
+     mixxx::BeatsImporterPointer m_pBeatsImporterPending;
+     std::unique_ptr<mixxx::CueInfoImporter> m_pCueInfoImporterPending;
++    // The pending cues replace existing ones of the same types.
++    bool m_replaceCuesOnPendingImport{false};
+ 
+     friend class TrackDAO;
+     void setHeaderParsedFromTrackDAO(bool headerParsed) {
+diff --git a/src/track/track_decl.h b/src/track/track_decl.h
+index c3edb26d..8f940128 100644
+--- a/src/track/track_decl.h
++++ b/src/track/track_decl.h
+@@ -17,6 +17,9 @@ typedef QList<TrackPointer> TrackPointerList;
+ struct SyncTrackMetadataParams {
+     bool resetMissingTagMetadataOnImport = false;
+     bool syncSeratoMetadata = false;
++    /// Re-imported Serato data replaces Mixxx's: the grid even if the BPM
++    /// is locked, and the cues of the types it has.
++    bool honorExternalMetadata = false;
+ 
+     static SyncTrackMetadataParams readFromUserSettings(
+             const UserSettings& userSettings);
+-- 
+2.53.0.windows.3
+

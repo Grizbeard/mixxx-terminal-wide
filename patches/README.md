@@ -45,8 +45,9 @@ do not want and the rest still apply.
 | 0014 numbered library favorites for controllers | SHIFT + the DJM-T1's effect buttons do nothing: DJM-T1_Custom binds them to `[Library],favorite_N_*`, which do not exist, so there is no jumping straight to a stored crate, playlist, folder or Rekordbox/Serato playlist |
 | 0015 `[App],shutdown` asks, then quits | the options page's *shut down* button does nothing, so a panel with no keyboard has no way to quit Mixxx or, on the appliance, turn the box off |
 | 0016 bars on the beat grid, numbered | every beat line looks the same: no wider, brighter line on each bar's first beat, no bar numbers along the top of the waveform, and no `beats_downbeat_earlier`/`_later` to move where bar 1 starts |
+| 0017 `[Library],HonorExternalMetadata` | grids and cues changed in Serato or Rekordbox after Mixxx first saw a track stay as Mixxx first read them (not a skin feature; the appliance sets it in `mixxx.cfg`) |
 
-0007, 0013, 0014, 0015 and 0016 cost features. The rest are cosmetic, and the skin is built to
+0007, 0013, 0014, 0015, 0016 and 0017 cost features. The rest are cosmetic, and the skin is built to
 degrade quietly without them.
 
 There is no 0012 here. It was wet-only effect units, for post-fader effects
