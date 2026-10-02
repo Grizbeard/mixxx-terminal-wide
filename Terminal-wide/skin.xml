@@ -101,24 +101,32 @@
       <Name>Btop</Name>
       <!-- btop palette: black ground, sage-grey rules and text, and only the four sample hues (magenta, yellow, cyan, green). -->
 
-      <!-- No wordmark: this skin ships no image assets at all, so the splash
-           is the ground colour and a one-line progress rule. -->
+      <!-- The Terminal skin's character-art MIXXX over a progress rule as wide
+           as the word. The wordmark is the one image this skin ships,
+           generated per scheme into launch/ (tools/generate.py). skin: is
+           already pointed at this skin when the launch screen is parsed;
+           skins: would only find the skins installed with Mixxx. -->
       <LaunchImageStyle>
         LaunchImage {
           background-color: #000000;
         }
         QLabel {
-          image: none;
-          min-height: 0px;
-          max-height: 0px;
+          image: url(skin:launch/mixxx_logo_btop.svg);
+          padding: 0;
+          margin: 0px 2px 0px 2px;
+          border: none;
+          min-width: 472px;
+          max-width: 472px;
+          min-height: 120px;
+          max-height: 120px;
         }
         QProgressBar {
           background-color: #000000;
           border: none;
-          min-width: 320px;
-          max-width: 320px;
-          min-height: 3px;
-          max-height: 3px;
+          min-width: 476px;
+          max-width: 476px;
+          min-height: 4px;
+          max-height: 4px;
         }
         QProgressBar::chunk {
           background-color: #93d64a;
@@ -208,24 +216,32 @@
       <Name>Amber</Name>
       <!-- P3 amber phosphor: one hue, separated by brightness alone, the warm monochrome of a late-eighties terminal. -->
 
-      <!-- No wordmark: this skin ships no image assets at all, so the splash
-           is the ground colour and a one-line progress rule. -->
+      <!-- The Terminal skin's character-art MIXXX over a progress rule as wide
+           as the word. The wordmark is the one image this skin ships,
+           generated per scheme into launch/ (tools/generate.py). skin: is
+           already pointed at this skin when the launch screen is parsed;
+           skins: would only find the skins installed with Mixxx. -->
       <LaunchImageStyle>
         LaunchImage {
           background-color: #000000;
         }
         QLabel {
-          image: none;
-          min-height: 0px;
-          max-height: 0px;
+          image: url(skin:launch/mixxx_logo_amber.svg);
+          padding: 0;
+          margin: 0px 2px 0px 2px;
+          border: none;
+          min-width: 472px;
+          max-width: 472px;
+          min-height: 120px;
+          max-height: 120px;
         }
         QProgressBar {
           background-color: #000000;
           border: none;
-          min-width: 320px;
-          max-width: 320px;
-          min-height: 3px;
-          max-height: 3px;
+          min-width: 476px;
+          max-width: 476px;
+          min-height: 4px;
+          max-height: 4px;
         }
         QProgressBar::chunk {
           background-color: #ffb10a;
@@ -315,24 +331,32 @@
       <Name>Green Phosphor</Name>
       <!-- P1 green phosphor: one hue, separated by brightness alone, the way a monochrome terminal separated everything. -->
 
-      <!-- No wordmark: this skin ships no image assets at all, so the splash
-           is the ground colour and a one-line progress rule. -->
+      <!-- The Terminal skin's character-art MIXXX over a progress rule as wide
+           as the word. The wordmark is the one image this skin ships,
+           generated per scheme into launch/ (tools/generate.py). skin: is
+           already pointed at this skin when the launch screen is parsed;
+           skins: would only find the skins installed with Mixxx. -->
       <LaunchImageStyle>
         LaunchImage {
           background-color: #000000;
         }
         QLabel {
-          image: none;
-          min-height: 0px;
-          max-height: 0px;
+          image: url(skin:launch/mixxx_logo_green.svg);
+          padding: 0;
+          margin: 0px 2px 0px 2px;
+          border: none;
+          min-width: 472px;
+          max-width: 472px;
+          min-height: 120px;
+          max-height: 120px;
         }
         QProgressBar {
           background-color: #000000;
           border: none;
-          min-width: 320px;
-          max-width: 320px;
-          min-height: 3px;
-          max-height: 3px;
+          min-width: 476px;
+          max-width: 476px;
+          min-height: 4px;
+          max-height: 4px;
         }
         QProgressBar::chunk {
           background-color: #33ff3a;
@@ -422,24 +446,32 @@
       <Name>White Phosphor</Name>
       <!-- P4 white phosphor: one barely-blue white, separated by brightness alone, like a paper-white monitor. -->
 
-      <!-- No wordmark: this skin ships no image assets at all, so the splash
-           is the ground colour and a one-line progress rule. -->
+      <!-- The Terminal skin's character-art MIXXX over a progress rule as wide
+           as the word. The wordmark is the one image this skin ships,
+           generated per scheme into launch/ (tools/generate.py). skin: is
+           already pointed at this skin when the launch screen is parsed;
+           skins: would only find the skins installed with Mixxx. -->
       <LaunchImageStyle>
         LaunchImage {
           background-color: #000000;
         }
         QLabel {
-          image: none;
-          min-height: 0px;
-          max-height: 0px;
+          image: url(skin:launch/mixxx_logo_white.svg);
+          padding: 0;
+          margin: 0px 2px 0px 2px;
+          border: none;
+          min-width: 472px;
+          max-width: 472px;
+          min-height: 120px;
+          max-height: 120px;
         }
         QProgressBar {
           background-color: #000000;
           border: none;
-          min-width: 320px;
-          max-width: 320px;
-          min-height: 3px;
-          max-height: 3px;
+          min-width: 476px;
+          max-width: 476px;
+          min-height: 4px;
+          max-height: 4px;
         }
         QProgressBar::chunk {
           background-color: #e4e6e7;

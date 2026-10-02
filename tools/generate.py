@@ -11,9 +11,11 @@ stylesheet per scheme. The palette JSON is the single source of truth; the
 per-scheme stylesheets and the <Schemes> block in skin.xml are derived from it
 and should never be hand-edited.
 
-Terminal-wide ships no image assets, which is why this is a fraction of the
-size of the Terminal skin's own generator in the Mixxx tree: there are no icon
-SVGs to flatten and repaint, only text on blocks.
+Terminal-wide ships almost no image assets, which is why this is a fraction
+of the size of the Terminal skin's own generator in the Mixxx tree: there are
+no icon SVGs to flatten and repaint, only text on blocks. The one exception is
+the launch screen's wordmark (launch/), which a stylesheet can only show as an
+image, and that is generated here too.
 """
 
 from __future__ import annotations
@@ -37,6 +39,26 @@ SCHEMES_BEGIN = (
 SCHEMES_END = "  <!-- TERMINAL-WIDE-SCHEMES-END -->"
 
 TOKEN_RE = re.compile(r"\{\{([a-z0-9_]+)\}\}")
+
+# The launch screen's wordmark: MIXXX in figlet's "standard" font, as the
+# Terminal skin draws it, since a terminal spells its splash out in
+# characters. One tuple per letter, five rows each, every row of a letter the
+# same width so the columns line up once the letters are joined.
+ASCII_LOGO = (
+    (" __  __ ", "|  \\/  |", "| |\\/| |", "| |  | |", "|_|  |_|"),
+    (" ___ ", "|_ _|", " | | ", " | | ", "|___|"),
+    ("__  __", "\\ \\/ /", " \\  / ", " /  \\ ", "/_/\\_\\"),
+    ("__  __", "\\ \\/ /", " \\  / ", " /  \\ ", "/_/\\_\\"),
+    ("__  __", "\\ \\/ /", " \\  / ", " /  \\ ", "/_/\\_\\"),
+)
+# Character cell and type size, in px: the Terminal skin's 9 x 16 cell and 17px
+# type, times 1.5 for this skin's larger type on the 8.8" panel. The cell is a
+# little smaller than the glyphs so neighbours overlap: the art is runs of "_"
+# and "|" that have to read as continuous bars and uprights.
+ASCII_LOGO_CELL_W = 13.5
+ASCII_LOGO_CELL_H = 24.0
+ASCII_LOGO_FONT = 25.5
+MONO = "'Cascadia Mono','Consolas','DejaVu Sans Mono','Menlo',monospace"
 
 
 class Palette:
@@ -62,8 +84,12 @@ class Palette:
     def tokens(self) -> dict:
         merged = dict(self.colors)
         merged.update(self.roles)
+        logo_width, logo_height = ascii_logo_size()
         merged.update(
             {
+                "logo_width": str(logo_width),
+                "logo_height": str(logo_height),
+                "logo_bar_width": str(logo_width + 4),
                 "scheme_name": self.name,
                 "scheme_dir": self.dir,
                 "scheme_description": xml_comment_safe(self.description),
@@ -118,6 +144,61 @@ def write(path: Path, text: str, check: bool, stale: list) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     print(f"wrote {path.relative_to(REPO).as_posix()}")
+
+
+def ascii_logo_rows() -> list[str]:
+    """The wordmark one string per row, with a column of space between letters:
+    figlet's glyphs butt up against each other, which runs the three X's into
+    a fence."""
+    return [
+        " ".join(letter[row] for letter in ASCII_LOGO)
+        for row in range(len(ASCII_LOGO[0]))
+    ]
+
+
+def ascii_logo_size() -> tuple[int, int]:
+    rows = ascii_logo_rows()
+    return (
+        round(max(len(row) for row in rows) * ASCII_LOGO_CELL_W),
+        round(len(rows) * ASCII_LOGO_CELL_H),
+    )
+
+
+def ascii_logo_svg(color: str) -> str:
+    """The wordmark as monospace character art, each character centred in a
+    cell of its own. The advance width differs between the faces in the font
+    stack, so a row set as one string would drift out of register on
+    whichever platform did not set the spacing; one <text> per cell cannot."""
+    width, height = ascii_logo_size()
+    parts = []
+    for row_index, row in enumerate(ascii_logo_rows()):
+        # 0.78 of the line box puts the baseline where a terminal puts it.
+        y = (row_index + 0.78) * ASCII_LOGO_CELL_H
+        for column, char in enumerate(row):
+            if char == " ":
+                continue
+            char = char.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            x = (column + 0.5) * ASCII_LOGO_CELL_W
+            parts.append(
+                f'  <text x="{x:.2f}" y="{y:.2f}" fill="{color}"'
+                f' font-family="{MONO}" font-size="{ASCII_LOGO_FONT:g}"'
+                f' text-anchor="middle">{char}</text>'
+            )
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}"'
+        f' viewBox="0 0 {width} {height}" version="1.1">\n'
+        + "\n".join(parts)
+        + "\n</svg>\n"
+    )
+
+
+def build_launch_logos(palettes: list[Palette], check: bool, stale: list) -> None:
+    """launch/mixxx_logo_<scheme>.svg, in the scheme's brightest text colour,
+    as the Terminal skin does. The scheme's <LaunchImageStyle> shows it."""
+    for palette in palettes:
+        color = palette.tokens()["fg_hi"]
+        write(SKIN / "launch" / f"mixxx_logo_{palette.dir}.svg", ascii_logo_svg(color),
+              check, stale)
 
 
 def build_qss(palettes: list[Palette], check: bool, stale: list) -> None:
@@ -217,6 +298,7 @@ def main() -> int:
 
     stale: list = []
     build_qss(selected, args.check, stale)
+    build_launch_logos(selected, args.check, stale)
     build_skin_xml(all_palettes, args.check, stale)
     if args.from_terminal:
         sync_library_icons(args.from_terminal, args.check, stale)

@@ -24,6 +24,7 @@ palettes/<name>.json               colours + role assignments
         |
         +-- mixxx/skins/Terminal-wide/style_<dir>.qss   the scheme stylesheet
         +-- mixxx/skins/Terminal-wide/skin.xml          the <Schemes> block
+        +-- mixxx/skins/Terminal-wide/launch/           launch wordmark per scheme
         +-- mixxx/skins/Terminal-wide/library/<Name>/   sidebar icons (copied)
 ```
 

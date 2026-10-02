@@ -48,8 +48,9 @@ python tools/generate.py --palette btop  # one of them
 python tools/generate.py --check         # write nothing, fail if stale
 ```
 
-The skin ships **no image assets** apart from the library sidebar icons — every
-mark on it is text on a block, which is what lets a scheme be a JSON file.
+The skin ships **no image assets** apart from the library sidebar icons and the
+launch screen's character-art wordmark, which is generated with the stylesheets —
+every mark on it is text on a block, which is what lets a scheme be a JSON file.
 
 ## Previewing
 

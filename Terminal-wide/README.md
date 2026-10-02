@@ -419,7 +419,9 @@ Four, all generated from one palette each:
 | White Phosphor | one hue |
 
 **The skin is generated, not hand-edited.** `style_<scheme>.qss`, the
-`<Schemes>` block in `skin.xml` and `library/<scheme>/` all come from
+`<Schemes>` block in `skin.xml`, `launch/mixxx_logo_<scheme>.svg` (the launch
+screen's character-art MIXXX, as the Terminal skin draws it) and
+`library/<scheme>/` all come from
 [`tools/generate.py`](../tools/). Edit a
 palette or a template and re-run it; edits made directly to those files are
 overwritten. `style.qss` and the widget XML *are* hand-written — they carry
