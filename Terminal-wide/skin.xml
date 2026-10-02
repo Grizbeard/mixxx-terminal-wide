@@ -181,6 +181,10 @@
       <!-- Waveform furniture: thin dim rules, bright markers. -->
       <SetVariable name="AxesColor">#3b4037</SetVariable>
       <SetVariable name="BeatColor">#596154</SetVariable>
+      <!-- Bars: every fourth beat brighter and wider, numbered along the top.
+           Needs bar support in Mixxx; a build without it ignores both. -->
+      <SetVariable name="DownbeatColor">#929e8a</SetVariable>
+      <SetVariable name="BarNumberColor">#b7c7ad</SetVariable>
       <SetVariable name="PlayPosColor">#ddf0d1</SetVariable>
       <SetVariable name="CueColor">#ea3c96</SetVariable>
       <SetVariable name="LoopColor">#d8d84a</SetVariable>
@@ -296,6 +300,10 @@
       <!-- Waveform furniture: thin dim rules, bright markers. -->
       <SetVariable name="AxesColor">#433516</SetVariable>
       <SetVariable name="BeatColor">#665124</SetVariable>
+      <!-- Bars: every fourth beat brighter and wider, numbered along the top.
+           Needs bar support in Mixxx; a build without it ignores both. -->
+      <SetVariable name="DownbeatColor">#d69c1f</SetVariable>
+      <SetVariable name="BarNumberColor">#ffb10a</SetVariable>
       <SetVariable name="PlayPosColor">#ffdf99</SetVariable>
       <SetVariable name="CueColor">#ffb10a</SetVariable>
       <SetVariable name="LoopColor">#ffb10a</SetVariable>
@@ -411,6 +419,10 @@
       <!-- Waveform furniture: thin dim rules, bright markers. -->
       <SetVariable name="AxesColor">#164318</SetVariable>
       <SetVariable name="BeatColor">#246626</SetVariable>
+      <!-- Bars: every fourth beat brighter and wider, numbered along the top.
+           Needs bar support in Mixxx; a build without it ignores both. -->
+      <SetVariable name="DownbeatColor">#1fd625</SetVariable>
+      <SetVariable name="BarNumberColor">#33ff3a</SetVariable>
       <SetVariable name="PlayPosColor">#b2ffb5</SetVariable>
       <SetVariable name="CueColor">#33ff3a</SetVariable>
       <SetVariable name="LoopColor">#33ff3a</SetVariable>
@@ -526,6 +538,10 @@
       <!-- Waveform furniture: thin dim rules, bright markers. -->
       <SetVariable name="AxesColor">#32383c</SetVariable>
       <SetVariable name="BeatColor">#4d555b</SetVariable>
+      <!-- Bars: every fourth beat brighter and wider, numbered along the top.
+           Needs bar support in Mixxx; a build without it ignores both. -->
+      <SetVariable name="DownbeatColor">#939a9f</SetVariable>
+      <SetVariable name="BarNumberColor">#e4e6e7</SetVariable>
       <SetVariable name="PlayPosColor">#f7f7f8</SetVariable>
       <SetVariable name="CueColor">#e4e6e7</SetVariable>
       <SetVariable name="LoopColor">#e4e6e7</SetVariable>

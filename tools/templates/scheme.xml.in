@@ -82,6 +82,10 @@
       <!-- Waveform furniture: thin dim rules, bright markers. -->
       <SetVariable name="AxesColor">{{border}}</SetVariable>
       <SetVariable name="BeatColor">{{border_lit}}</SetVariable>
+      <!-- Bars: every fourth beat brighter and wider, numbered along the top.
+           Needs bar support in Mixxx; a build without it ignores both. -->
+      <SetVariable name="DownbeatColor">{{fg_dim}}</SetVariable>
+      <SetVariable name="BarNumberColor">{{fg}}</SetVariable>
       <SetVariable name="PlayPosColor">{{fg_hi}}</SetVariable>
       <SetVariable name="CueColor">{{cue}}</SetVariable>
       <SetVariable name="LoopColor">{{loop}}</SetVariable>

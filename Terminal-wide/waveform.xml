@@ -32,6 +32,10 @@
         <SignalRGBMidColor><Variable name="SignalRGBMidColor"/></SignalRGBMidColor>
         <SignalRGBLowColor><Variable name="SignalRGBLowColor"/></SignalRGBLowColor>
         <BeatColor><Variable name="BeatColor"/></BeatColor>
+        <DownbeatColor><Variable name="DownbeatColor"/></DownbeatColor>
+        <BarNumberColor><Variable name="BarNumberColor"/></BarNumberColor>
+        <BarNumberFont>Cascadia Mono, Consolas, DejaVu Sans Mono, Menlo, monospace</BarNumberFont>
+        <BarNumberSize>10</BarNumberSize>
         <AxesColor><Variable name="AxesColor"/></AxesColor>
         <BeatHighlightColor></BeatHighlightColor>
         <PlayPosColor><Variable name="PlayPosColor"/></PlayPosColor>

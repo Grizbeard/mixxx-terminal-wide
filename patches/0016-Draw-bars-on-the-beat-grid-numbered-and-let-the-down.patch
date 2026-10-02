@@ -1,0 +1,855 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Fri, 2 Oct 2026 11:45:39 -0500
+Subject: [PATCH 16/16] Draw bars on the beat grid, numbered, and let the
+ downbeat move
+
+[AI-generated text: this description was written autonomously by an AI
+agent (Claude). Review it before relying on it or submitting it.]
+
+A skin that sets DownbeatColor gets every fourth beat, counted from the
+beat grid's first marker, drawn 2 px wide in that colour, and bar numbers
+along the top of the waveform (BarNumberColor, BarNumberFont,
+BarNumberSize). Numbers that would collide are thinned to every 2nd, 4th,
+... bar. Skins without DownbeatColor look as before. Only the allshader
+waveforms draw bars.
+
+Mixxx detects no downbeats, so bar 1 is wherever the grid starts: the
+first beat the analyser found, or the first marker of an imported Serato
+grid. [ChannelN],beats_downbeat_earlier/_later move it by one beat with
+Beats::tryMoveFirstMarker(), which moves no beat, so it is saved with the
+grid and allowed on BPM-locked tracks too.
+
+DigitsRenderNode gains a colour, a font and any number of labels for this.
+
+Tested on Windows: the beat unit tests, new ones included, pass, and
+Terminal-wide shows numbered bars on a 120 BPM test track.
+
+[End of AI-generated text.]
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/engine/controls/bpmcontrol.cpp            |  51 +++++
+ src/engine/controls/bpmcontrol.h              |   5 +
+ src/test/beatstest.cpp                        |  88 ++++++++
+ src/track/beats.cpp                           |  68 ++++++
+ src/track/beats.h                             |   9 +
+ src/track/track.cpp                           |  10 +
+ src/track/track.h                             |   4 +
+ .../renderers/allshader/digitsrenderer.cpp    |  54 ++++-
+ .../renderers/allshader/digitsrenderer.h      |  20 +-
+ .../allshader/waveformrenderbeat.cpp          | 202 +++++++++++++++---
+ .../renderers/allshader/waveformrenderbeat.h  |  19 ++
+ 11 files changed, 494 insertions(+), 36 deletions(-)
+
+diff --git a/src/engine/controls/bpmcontrol.cpp b/src/engine/controls/bpmcontrol.cpp
+index a6acb11a..c22fb355 100644
+--- a/src/engine/controls/bpmcontrol.cpp
++++ b/src/engine/controls/bpmcontrol.cpp
+@@ -117,6 +117,24 @@ BpmControl::BpmControl(const QString& group,
+             this,
+             &BpmControl::slotTranslateBeatsHalf,
+             Qt::DirectConnection);
++    // Where the bars start, i.e. which beats the waveform draws as downbeats:
++    // one beat earlier or later, without moving the grid.
++    m_pDownbeatEarlier = std::make_unique<ControlPushButton>(
++            ConfigKey(group, "beats_downbeat_earlier"), false);
++    m_pDownbeatEarlier->setKbdRepeatable(true);
++    connect(m_pDownbeatEarlier.get(),
++            &ControlObject::valueChanged,
++            this,
++            &BpmControl::slotDownbeatEarlier,
++            Qt::DirectConnection);
++    m_pDownbeatLater = std::make_unique<ControlPushButton>(
++            ConfigKey(group, "beats_downbeat_later"), false);
++    m_pDownbeatLater->setKbdRepeatable(true);
++    connect(m_pDownbeatLater.get(),
++            &ControlObject::valueChanged,
++            this,
++            &BpmControl::slotDownbeatLater,
++            Qt::DirectConnection);
+     m_pTranslateBeatsMove = std::make_unique<ControlEncoder>(
+             ConfigKey(group, "beats_translate_move"), false);
+     connect(m_pTranslateBeatsMove.get(),
+@@ -344,6 +362,39 @@ void BpmControl::slotTranslateBeatsLater(double v) {
+     slotTranslateBeatsMove(1);
+ }
+ 
++void BpmControl::slotDownbeatEarlier(double v) {
++    if (v <= 0) {
++        return;
++    }
++    moveDownbeat(-1);
++}
++
++void BpmControl::slotDownbeatLater(double v) {
++    if (v <= 0) {
++        return;
++    }
++    moveDownbeat(1);
++}
++
++void BpmControl::moveDownbeat(int beats) {
++    const TrackPointer pTrack = getEngineBuffer()->getLoadedTrack();
++    if (!pTrack) {
++        return;
++    }
++    const mixxx::BeatsPointer pBeats = pTrack->getBeats();
++    if (!pBeats) {
++        return;
++    }
++    const auto movedBeats = pBeats->tryMoveFirstMarker(beats);
++    if (!movedBeats) {
++        qWarning() << "Cannot move the downbeat of" << getGroup()
++                   << "without moving its beats";
++        return;
++    }
++    // Every beat stays where it was, so this is allowed with the BPM locked.
++    pTrack->setBeatsKeepingBeatPositions(*movedBeats);
++}
++
+ // slotTranslateBeatsHalf works only with constant BPM tracks
+ void BpmControl::slotTranslateBeatsHalf(double v) {
+     if (v <= 0) {
+diff --git a/src/engine/controls/bpmcontrol.h b/src/engine/controls/bpmcontrol.h
+index cab398ea..68ba2895 100644
+--- a/src/engine/controls/bpmcontrol.h
++++ b/src/engine/controls/bpmcontrol.h
+@@ -104,6 +104,8 @@ class BpmControl : public EngineControl {
+     void slotTranslateBeatsLater(double);
+     void slotTranslateBeatsHalf(double);
+     void slotTranslateBeatsMove(double);
++    void slotDownbeatEarlier(double);
++    void slotDownbeatLater(double);
+ 
+     void slotBpmTap(double value);
+     void slotBpmTapFilter(double averageLength, int numSamples);
+@@ -126,6 +128,7 @@ class BpmControl : public EngineControl {
+     }
+     double calcSyncAdjustment(bool userTweakingSync);
+     void adjustBeatsBpm(double deltaBpm);
++    void moveDownbeat(int beats);
+     void slotScaleBpm(mixxx::Beats::BpmScale bpmScale);
+ 
+     friend class SyncControl;
+@@ -152,6 +155,8 @@ class BpmControl : public EngineControl {
+     std::unique_ptr<ControlPushButton> m_pTranslateBeatsLater;
+     std::unique_ptr<ControlPushButton> m_pTranslateBeatsHalf;
+     std::unique_ptr<ControlEncoder> m_pTranslateBeatsMove;
++    std::unique_ptr<ControlPushButton> m_pDownbeatEarlier;
++    std::unique_ptr<ControlPushButton> m_pDownbeatLater;
+     std::unique_ptr<ControlPushButton> m_pBeatsUndo;
+     std::unique_ptr<ControlObject> m_pBeatsUndoPossible;
+ 
+diff --git a/src/test/beatstest.cpp b/src/test/beatstest.cpp
+index 3d4bc797..0ce4b897 100644
+--- a/src/test/beatstest.cpp
++++ b/src/test/beatstest.cpp
+@@ -635,4 +635,92 @@ TEST(BeatsTest, IteratorFromFloorUndershoot) {
+     EXPECT_LT(std::prev(it)->value(), position.value());
+ }
+ 
++// Both have the same beats, to within a frame, from `from` to `to`.
++void expectSameBeats(const Beats& expected,
++        const Beats& actual,
++        audio::FramePos from,
++        audio::FramePos to) {
++    auto it = expected.iteratorFrom(from);
++    auto actualIt = actual.iteratorFrom(from - 1);
++    int count = 0;
++    for (; *it <= to; ++it, ++actualIt, ++count) {
++        EXPECT_NEAR(it->value(), actualIt->value(), 1.0) << "beat " << count;
++    }
++    EXPECT_GT(count, 0);
++}
++
++TEST(BeatsTest, ConstTempoMoveFirstMarker) {
++    const auto from = kStartPosition - 10 * kSampleRate.value();
++    for (int beats : {-5, -1, 1, 3}) {
++        const auto moved = kConstTempoBeats.tryMoveFirstMarker(beats);
++        ASSERT_TRUE(moved) << beats;
++        EXPECT_NEAR((kConstTempoBeats.cfirstmarker() + beats)->value(),
++                (*moved)->cfirstmarker()->value(),
++                0.5)
++                << beats;
++        expectSameBeats(kConstTempoBeats, **moved, from, kEndPosition);
++    }
++}
++
++TEST(BeatsTest, ConstTempoMoveFirstMarkerAndBack) {
++    const auto moved = kConstTempoBeats.tryMoveFirstMarker(1);
++    ASSERT_TRUE(moved);
++    const auto back = (*moved)->tryMoveFirstMarker(-1);
++    ASSERT_TRUE(back);
++    EXPECT_EQ(kConstTempoBeats, **back);
++}
++
++TEST(BeatsTest, NonConstTempoMoveFirstMarker) {
++    const auto from = kStartPosition - 10 * kSampleRate.value();
++    // The first section has 8 beats: moving into the second keeps its 7th.
++    for (int beats : {-3, -1, 1, 5, 7}) {
++        const auto moved = kNonConstTempoBeats.tryMoveFirstMarker(beats);
++        ASSERT_TRUE(moved) << beats;
++        EXPECT_NEAR((kNonConstTempoBeats.cfirstmarker() + beats)->value(),
++                (*moved)->cfirstmarker()->value(),
++                0.5)
++                << beats;
++        expectSameBeats(kNonConstTempoBeats, **moved, from, kEndPosition);
++    }
++}
++
++TEST(BeatsTest, NonConstTempoMoveFirstMarkerPastATempoChange) {
++    // The 8th beat moved past would have to continue the 60 BPM section
++    // backwards, which puts the 120 BPM beats before it elsewhere.
++    EXPECT_FALSE(kNonConstTempoBeats.tryMoveFirstMarker(8));
++}
++
++TEST(BeatsTest, NonConstTempoMoveFirstMarkerAndBack) {
++    const auto from = kStartPosition - 10 * kSampleRate.value();
++    for (int beats : {-2, 3}) {
++        const auto moved = kNonConstTempoBeats.tryMoveFirstMarker(beats);
++        ASSERT_TRUE(moved) << beats;
++        const auto back = (*moved)->tryMoveFirstMarker(-beats);
++        ASSERT_TRUE(back) << beats;
++        EXPECT_NEAR(kNonConstTempoBeats.cfirstmarker()->value(),
++                (*back)->cfirstmarker()->value(),
++                0.5)
++                << beats;
++        expectSameBeats(kNonConstTempoBeats, **back, from, kEndPosition);
++    }
++}
++
++TEST(BeatsTest, MovedFirstMarkerSurvivesSerialization) {
++    for (const Beats* pBeats : {&kConstTempoBeats, &kNonConstTempoBeats}) {
++        for (int beats : {-1, 2}) {
++            const auto moved = pBeats->tryMoveFirstMarker(beats);
++            ASSERT_TRUE(moved);
++            const auto restored = Beats::fromByteArray(kSampleRate,
++                    (*moved)->getVersion(),
++                    QString(),
++                    (*moved)->toByteArray());
++            ASSERT_NE(nullptr, restored);
++            EXPECT_NEAR((*moved)->cfirstmarker()->value(),
++                    restored->cfirstmarker()->value(),
++                    0.5)
++                    << beats;
++        }
++    }
++}
++
+ } // namespace
+diff --git a/src/track/beats.cpp b/src/track/beats.cpp
+index 840b26e4..aa5f00cf 100644
+--- a/src/track/beats.cpp
++++ b/src/track/beats.cpp
+@@ -653,6 +653,74 @@ std::optional<BeatsPointer> Beats::tryTranslateBeats(double xBeats) const {
+             m_subVersion));
+ }
+ 
++std::optional<BeatsPointer> Beats::tryMoveFirstMarker(int beats) const {
++    const audio::FrameDiff_t lastBeatLength = lastBeatLengthFrames();
++    if (hasConstantTempo()) {
++        // Rounded once, so moving back and forth returns to the same position.
++        const auto lastMarkerPosition =
++                (m_lastMarkerPosition + beats * lastBeatLength).toNearestFrameBoundary();
++        return BeatsPointer(new Beats(m_markers,
++                lastMarkerPosition,
++                m_lastMarkerBpm,
++                m_sampleRate,
++                m_subVersion));
++    }
++
++    std::vector<BeatMarker> markers = m_markers;
++    auto lastMarkerPosition = m_lastMarkerPosition;
++    // The beat length from the first marker on, which is also what the grid
++    // continues with before it.
++    const auto firstBeatLength = [&]() -> audio::FrameDiff_t {
++        if (markers.empty()) {
++            return lastBeatLength;
++        }
++        const audio::FramePos nextPosition =
++                markers.size() > 1 ? markers[1].position() : lastMarkerPosition;
++        return (nextPosition - markers.front().position()) /
++                markers.front().beatsTillNextMarker();
++    };
++
++    // Earlier: a one-beat section in front, as long as the first one's beats.
++    for (; beats < 0; ++beats) {
++        if (markers.empty()) {
++            lastMarkerPosition =
++                    (lastMarkerPosition - lastBeatLength).toNearestFrameBoundary();
++            continue;
++        }
++        const auto position =
++                (markers.front().position() - firstBeatLength()).toNearestFrameBoundary();
++        markers.insert(markers.begin(), BeatMarker(position, 1));
++    }
++    // Later: the first section loses its first beat, or goes if that was all.
++    for (; beats > 0; --beats) {
++        if (markers.empty()) {
++            lastMarkerPosition =
++                    (lastMarkerPosition + lastBeatLength).toNearestFrameBoundary();
++            continue;
++        }
++        const BeatMarker first = markers.front();
++        const audio::FrameDiff_t length = firstBeatLength();
++        if (first.beatsTillNextMarker() > 1) {
++            markers.front() = BeatMarker(
++                    (first.position() + length).toNearestFrameBoundary(),
++                    first.beatsTillNextMarker() - 1);
++            continue;
++        }
++        markers.erase(markers.begin());
++        // The removed beat is now reached by continuing the next section
++        // backwards, which only puts it back in place at the same tempo.
++        if (std::abs(firstBeatLength() - length) > 1) {
++            return std::nullopt;
++        }
++    }
++
++    return BeatsPointer(new Beats(std::move(markers),
++            lastMarkerPosition,
++            m_lastMarkerBpm,
++            m_sampleRate,
++            m_subVersion));
++}
++
+ std::optional<BeatsPointer> Beats::tryScale(BpmScale scale) const {
+     double scaleFactor = 1.0;
+     switch (scale) {
+diff --git a/src/track/beats.h b/src/track/beats.h
+index f6b2452e..95f2ccda 100644
+--- a/src/track/beats.h
++++ b/src/track/beats.h
+@@ -406,6 +406,15 @@ class Beats : private std::enable_shared_from_this<Beats> {
+     /// failure.
+     std::optional<BeatsPointer> tryTranslateBeats(double xBeats) const;
+ 
++    /// Move the first beat marker by `beats` whole beats (negative: earlier)
++    /// without moving any beat. The waveform counts bars from the first
++    /// marker, so this moves where bar 1 starts.
++    //
++    /// Returns `nullopt` if that cannot be done without moving beats: moving
++    /// past a variable tempo grid's one-beat first section whose tempo differs
++    /// from the next one's.
++    std::optional<BeatsPointer> tryMoveFirstMarker(int beats) const;
++
+     /// Scale the position of every beat in the song by `scale`.
+     //
+     /// Returns a pointer to the modified beats object, or `nullopt` on
+diff --git a/src/track/track.cpp b/src/track/track.cpp
+index 365b296e..c87d69d7 100644
+--- a/src/track/track.cpp
++++ b/src/track/track.cpp
+@@ -437,6 +437,16 @@ bool Track::trySetBeats(mixxx::BeatsPointer pBeats) {
+     return trySetBeatsMarkDirtyAndUnlock(&locked, pBeats, false);
+ }
+ 
++bool Track::setBeatsKeepingBeatPositions(mixxx::BeatsPointer pBeats) {
++    auto locked = lockMutex(&m_qMutex);
++    // The BPM lock guards where the beats are, and these leave them in place.
++    if (!setBeatsWhileLocked(pBeats)) {
++        return false;
++    }
++    afterBeatsAndBpmUpdated(&locked);
++    return true;
++}
++
+ bool Track::setBeatsWhileLocked(mixxx::BeatsPointer pBeats) {
+     if (m_pBeats == pBeats) {
+         return false;
+diff --git a/src/track/track.h b/src/track/track.h
+index 736954eb..cb12cc42 100644
+--- a/src/track/track.h
++++ b/src/track/track.h
+@@ -383,6 +383,10 @@ class Track : public QObject {
+     // Set the track's Beats if not locked
+     bool trySetBeats(mixxx::BeatsPointer pBeats);
+ 
++    // Set the track's Beats even if locked: only for Beats that put every
++    // beat where it was, e.g. from Beats::tryMoveFirstMarker()
++    bool setBeatsKeepingBeatPositions(mixxx::BeatsPointer pBeats);
++
+     void undoBeatsChange();
+     bool canUndoBeatsChange() const {
+         return !m_pBeatsUndoStack.isEmpty();
+diff --git a/src/waveform/renderers/allshader/digitsrenderer.cpp b/src/waveform/renderers/allshader/digitsrenderer.cpp
+index 4ec89f27..75dd1749 100644
+--- a/src/waveform/renderers/allshader/digitsrenderer.cpp
++++ b/src/waveform/renderers/allshader/digitsrenderer.cpp
+@@ -75,10 +75,19 @@ float allshader::DigitsRenderNode::height() const {
+ void allshader::DigitsRenderNode::updateTexture(rendergraph::Context* pContext,
+         float fontPointSize,
+         float maxHeight,
+-        float devicePixelRatio) {
+-    if (fontPointSize == m_fontPointSize && maxHeight == m_maxHeight) {
++        float devicePixelRatio,
++        const QColor& color,
++        const QStringList& fontFamilies) {
++    if (fontPointSize == m_fontPointSize && maxHeight == m_maxHeight &&
++            color == m_color && fontFamilies == m_fontFamilies) {
+         return;
+     }
++    if (color != m_color || fontFamilies != m_fontFamilies) {
++        m_color = color;
++        m_fontFamilies = fontFamilies;
++        // Redraw at the requested size, and fit it to maxHeight again.
++        m_adjustedFontPointSize = 0.f;
++    }
+     if (maxHeight != m_maxHeight) {
+         m_maxHeight = maxHeight;
+         m_adjustedFontPointSize = 0.f;
+@@ -96,7 +105,11 @@ void allshader::DigitsRenderNode::updateTexture(rendergraph::Context* pContext,
+ 
+     QFont font;
+     QFontMetricsF metrics{font};
+-    font.setFamily("Open Sans");
++    if (fontFamilies.isEmpty()) {
++        font.setFamily("Open Sans");
++    } else {
++        font.setFamilies(fontFamilies);
++    }
+     float maxTextHeight;
+     bool retry = false;
+     do {
+@@ -201,8 +214,8 @@ void allshader::DigitsRenderNode::updateTexture(rendergraph::Context* pContext,
+         painter.setRenderHint(QPainter::Antialiasing);
+ 
+         painter.setFont(font);
+-        painter.setPen(Qt::white);
+-        painter.setBrush(Qt::white);
++        painter.setPen(color);
++        painter.setBrush(color);
+ 
+         QPainterPath path;
+         for (int i = 0; i < NUM_CHARS; i++) {
+@@ -251,6 +264,37 @@ void allshader::DigitsRenderNode::update(
+     markDirtyMaterial();
+ }
+ 
++void allshader::DigitsRenderNode::update(const std::vector<Text>& texts) {
++    const int numVerticesPerRectangle = 6;
++    int reserved = 0;
++    for (const auto& text : texts) {
++        reserved += static_cast<int>(text.digits.length()) * numVerticesPerRectangle;
++    }
++    geometry().allocate(reserved);
++    TexturedVertexUpdater vertexUpdater{geometry().vertexDataAs<Geometry::TexturedPoint2D>()};
++    for (const auto& text : texts) {
++        addVertices(vertexUpdater, text.x, text.y, text.digits);
++    }
++
++    DEBUG_ASSERT(reserved == vertexUpdater.index());
++    markDirtyGeometry();
++    markDirtyMaterial();
++}
++
++float allshader::DigitsRenderNode::width(const QString& digits) const {
++    // As addVertices() lays them out: each character's outline overlaps the
++    // one before it.
++    const float space = static_cast<float>(m_penWidth) / 2;
++    float w = 0.f;
++    for (QChar c : digits) {
++        if (w != 0.f) {
++            w -= space;
++        }
++        w += m_width[charToIndex(c)];
++    }
++    return w;
++}
++
+ void allshader::DigitsRenderNode::clear() {
+     geometry().allocate(0);
+     markDirtyGeometry();
+diff --git a/src/waveform/renderers/allshader/digitsrenderer.h b/src/waveform/renderers/allshader/digitsrenderer.h
+index 9e7c1884..da4baa63 100644
+--- a/src/waveform/renderers/allshader/digitsrenderer.h
++++ b/src/waveform/renderers/allshader/digitsrenderer.h
+@@ -1,5 +1,9 @@
+ #pragma once
+ 
++#include <QColor>
++#include <QStringList>
++#include <vector>
++
+ #include "rendergraph/context.h"
+ #include "rendergraph/geometrynode.h"
+ #include "util/class.h"
+@@ -17,10 +21,13 @@ class allshader::DigitsRenderNode : public rendergraph::GeometryNode {
+     DigitsRenderNode();
+     ~DigitsRenderNode();
+ 
++    // An empty fontFamilies is Open Sans.
+     void updateTexture(rendergraph::Context* pContext,
+             float fontPointSize,
+             float maxHeight,
+-            float devicePixelRatio);
++            float devicePixelRatio,
++            const QColor& color = Qt::white,
++            const QStringList& fontFamilies = {});
+ 
+     void update(
+             float x,
+@@ -29,9 +36,18 @@ class allshader::DigitsRenderNode : public rendergraph::GeometryNode {
+             const QString& s1,
+             const QString& s2);
+ 
++    // Strings of digits, each with its top left corner at (x, y).
++    struct Text {
++        float x;
++        float y;
++        QString digits;
++    };
++    void update(const std::vector<Text>& texts);
++
+     void clear();
+ 
+     float height() const;
++    float width(const QString& digits) const;
+ 
+   private:
+     float addVertices(rendergraph::TexturedVertexUpdater& vertexUpdater,
+@@ -46,5 +62,7 @@ class allshader::DigitsRenderNode : public rendergraph::GeometryNode {
+     float m_height{};
+     float m_maxHeight{};
+     float m_adjustedFontPointSize{};
++    QColor m_color;
++    QStringList m_fontFamilies;
+     DISALLOW_COPY_AND_ASSIGN(DigitsRenderNode);
+ };
+diff --git a/src/waveform/renderers/allshader/waveformrenderbeat.cpp b/src/waveform/renderers/allshader/waveformrenderbeat.cpp
+index c1a9689d..df545b37 100644
+--- a/src/waveform/renderers/allshader/waveformrenderbeat.cpp
++++ b/src/waveform/renderers/allshader/waveformrenderbeat.cpp
+@@ -1,6 +1,7 @@
+ #include "waveform/renderers/allshader/waveformrenderbeat.h"
+ 
+ #include <QDomNode>
++#include <algorithm>
+ 
+ #include "engine/engine.h"
+ #include "moc_waveformrenderbeat.cpp"
+@@ -16,19 +17,84 @@
+ 
+ using namespace rendergraph;
+ 
++namespace {
++
++constexpr int kBeatsPerBar = 4;
++constexpr float kDownbeatWidth = 2.f;
++constexpr float kDefaultBarNumberFontSize = 9.f;
++// The bar numbers' height, at most, as a part of the waveform's.
++constexpr float kBarNumberMaxHeight = 0.3f;
++// Between a downbeat and its number, and on either side of a number when
++// deciding how many fit.
++constexpr float kBarNumberGap = 3.f;
++
++// Rounding down, also for the beats before the first marker (b > 0).
++int floorDiv(int a, int b) {
++    return a / b - ((a % b != 0) && (a < 0) ? 1 : 0);
++}
++
++int floorMod(int a, int b) {
++    return a - floorDiv(a, b) * b;
++}
++
++QColor colorFromSkin(const SkinContext& skinContext,
++        const QDomNode& node,
++        const QString& name) {
++    const QString value = skinContext.selectString(node, name);
++    if (value.isEmpty()) {
++        return QColor();
++    }
++    return WSkinColor::getCorrectColor(QColor(value)).toRgb();
++}
++
++} // namespace
++
+ namespace allshader {
+ 
+ WaveformRenderBeat::WaveformRenderBeat(WaveformWidgetRenderer* waveformWidget,
+         ::WaveformRendererAbstract::PositionSource type)
+         : ::WaveformRendererAbstract(waveformWidget),
++          m_barNumberFontSize(kDefaultBarNumberFontSize),
+           m_isSlipRenderer(type == ::WaveformRendererAbstract::Slip) {
+     initForRectangles<UniColorMaterial>(0);
++    {
++        auto pNode = std::make_unique<GeometryNode>();
++        m_pDownbeatsNode = pNode.get();
++        m_pDownbeatsNode->initForRectangles<UniColorMaterial>(0);
++        appendChildNode(std::move(pNode));
++    }
++    {
++        auto pNode = std::make_unique<DigitsRenderNode>();
++        m_pBarNumbersNode = pNode.get();
++        appendChildNode(std::move(pNode));
++    }
+     setUsePreprocess(true);
+ }
+ 
+ void WaveformRenderBeat::setup(const QDomNode& node, const SkinContext& skinContext) {
+     m_color = QColor(skinContext.selectString(node, QStringLiteral("BeatColor")));
+     m_color = WSkinColor::getCorrectColor(m_color).toRgb();
++
++    // No DownbeatColor, no bars: a skin that does not know about them looks
++    // as it always has.
++    m_downbeatColor = colorFromSkin(skinContext, node, QStringLiteral("DownbeatColor"));
++    m_barNumberColor = colorFromSkin(skinContext, node, QStringLiteral("BarNumberColor"));
++    if (!m_barNumberColor.isValid()) {
++        m_barNumberColor = m_downbeatColor;
++    }
++    // A CSS-style list, e.g. 'Cascadia Mono','DejaVu Sans Mono',monospace
++    m_barNumberFontFamilies.clear();
++    const QString fonts = skinContext.selectString(node, QStringLiteral("BarNumberFont"));
++    for (QString family : fonts.split(QChar(','), Qt::SkipEmptyParts)) {
++        family = family.trimmed();
++        family.remove(QChar('\''));
++        family.remove(QChar('"'));
++        if (!family.isEmpty()) {
++            m_barNumberFontFamilies.append(family);
++        }
++    }
++    m_barNumberFontSize = skinContext.selectFloat(
++            node, QStringLiteral("BarNumberSize"), kDefaultBarNumberFontSize);
+ }
+ 
+ void WaveformRenderBeat::draw(QPainter* painter, QPaintEvent* event) {
+@@ -39,11 +105,18 @@ void WaveformRenderBeat::draw(QPainter* painter, QPaintEvent* event) {
+ 
+ void WaveformRenderBeat::preprocess() {
+     if (!preprocessInner()) {
+-        geometry().allocate(0);
+-        markDirtyGeometry();
++        clear();
+     }
+ }
+ 
++void WaveformRenderBeat::clear() {
++    geometry().allocate(0);
++    markDirtyGeometry();
++    m_pDownbeatsNode->geometry().allocate(0);
++    m_pDownbeatsNode->markDirtyGeometry();
++    m_pBarNumbersNode->clear();
++}
++
+ bool WaveformRenderBeat::preprocessInner() {
+     const TrackPointer trackInfo = m_waveformRenderer->getTrackInfo();
+ 
+@@ -74,7 +147,7 @@ bool WaveformRenderBeat::preprocessInner() {
+ 
+     if (!m_color.alpha()) {
+         // Don't render the beatgrid lines is there are fully transparent
+-        return true;
++        return false;
+     }
+ 
+     const float devicePixelRatio = m_waveformRenderer->getDevicePixelRatio();
+@@ -99,45 +172,58 @@ bool WaveformRenderBeat::preprocessInner() {
+     }
+ 
+     const float rendererBreadth = m_waveformRenderer->getBreadth();
++    const bool showBars = m_downbeatColor.isValid() && m_downbeatColor.alpha() > 0;
++
++    // The beats on screen, and the first one's number counted from the grid's
++    // first marker, which bars are counted from.
++    // Note that we could also count them with
++    //   trackBeats->numBeatsInRange(startPosition, endPosition);
++    // but there have been reports of that method failing with a DEBUG_ASSERT.
++    m_beatXs.clear();
++    auto it = trackBeats->iteratorFrom(startPosition);
++    const int firstBeatIndex = (showBars && it != trackBeats->cend())
++            ? it - trackBeats->cfirstmarker()
++            : 0;
++    for (; it != trackBeats->cend() && *it <= endPosition; ++it) {
++        double beatPosition = it->toEngineSamplePos();
++        double xBeatPoint =
++                m_waveformRenderer->transformSamplePositionInRendererWorld(
++                        beatPosition, positionType);
+ 
+-    const int numVerticesPerLine = 6; // 2 triangles
++        xBeatPoint = qRound(xBeatPoint * devicePixelRatio) / devicePixelRatio;
++        m_beatXs.push_back(static_cast<float>(xBeatPoint));
++    }
+ 
+-    // Count the number of beats in the range to reserve space in the m_vertices vector.
+-    // Note that we could also use
+-    //   int numBearsInRange = trackBeats->numBeatsInRange(startPosition, endPosition);
+-    // for this, but there have been reports of that method failing with a DEBUG_ASSERT.
+-    int numBeatsInRange = 0;
+-    for (auto it = trackBeats->iteratorFrom(startPosition);
+-            it != trackBeats->cend() && *it <= endPosition;
+-            ++it) {
+-        numBeatsInRange++;
++    // The first beat shown that is a downbeat; every kBeatsPerBar-th after it.
++    const int firstDownbeat = floorMod(-firstBeatIndex, kBeatsPerBar);
++    const auto isDownbeat = [&](int i) {
++        return showBars && i >= firstDownbeat && (i - firstDownbeat) % kBeatsPerBar == 0;
++    };
++    const int numBeats = static_cast<int>(m_beatXs.size());
++    int numDownbeats = 0;
++    if (showBars && firstDownbeat < numBeats) {
++        numDownbeats = (numBeats - firstDownbeat + kBeatsPerBar - 1) / kBeatsPerBar;
+     }
+ 
++    const int numVerticesPerLine = 6; // 2 triangles
+     const int numBoxesPerBeat = (m_isSlipRenderer && splitStemTracks)
+             ? mixxx::kMaxSupportedStems
+             : 1;
+-    const int reserved = numBeatsInRange * numVerticesPerLine * numBoxesPerBeat;
+-    geometry().allocate(reserved);
++    const int reservedBeats = (numBeats - numDownbeats) * numVerticesPerLine * numBoxesPerBeat;
++    const int reservedDownbeats = numDownbeats * numVerticesPerLine * numBoxesPerBeat;
++    geometry().allocate(reservedBeats);
++    m_pDownbeatsNode->geometry().allocate(reservedDownbeats);
+ 
+-    VertexUpdater vertexUpdater{geometry().vertexDataAs<Geometry::Point2D>()};
++    VertexUpdater beatsUpdater{
++            geometry().vertexDataAs<Geometry::Point2D>()};
++    VertexUpdater downbeatsUpdater{
++            m_pDownbeatsNode->geometry().vertexDataAs<Geometry::Point2D>()};
+ 
+     const float boxBreadth = splitStemTracks
+             ? rendererBreadth / static_cast<float>(mixxx::kMaxSupportedStems)
+             : rendererBreadth;
+ 
+-    for (auto it = trackBeats->iteratorFrom(startPosition);
+-            it != trackBeats->cend() && *it <= endPosition;
+-            ++it) {
+-        double beatPosition = it->toEngineSamplePos();
+-        double xBeatPoint =
+-                m_waveformRenderer->transformSamplePositionInRendererWorld(
+-                        beatPosition, positionType);
+-
+-        xBeatPoint = qRound(xBeatPoint * devicePixelRatio) / devicePixelRatio;
+-
+-        const float x1 = static_cast<float>(xBeatPoint);
+-        const float x2 = x1 + 1.f;
+-
++    const auto addLine = [&](VertexUpdater& vertexUpdater, float x1, float x2) {
+         if (m_isSlipRenderer && splitStemTracks) {
+             for (int stemIdx = 0; stemIdx < mixxx::kMaxSupportedStems; ++stemIdx) {
+                 const float posy1 = stemIdx * boxBreadth;
+@@ -148,13 +234,69 @@ bool WaveformRenderBeat::preprocessInner() {
+             vertexUpdater.addRectangle({x1, 0.f},
+                     {x2, m_isSlipRenderer ? rendererBreadth / 2 : rendererBreadth});
+         }
++    };
++
++    for (int i = 0; i < numBeats; ++i) {
++        const float x1 = m_beatXs[i];
++        if (isDownbeat(i)) {
++            addLine(downbeatsUpdater, x1, x1 + kDownbeatWidth);
++        } else {
++            addLine(beatsUpdater, x1, x1 + 1.f);
++        }
+     }
+     markDirtyGeometry();
++    m_pDownbeatsNode->markDirtyGeometry();
+ 
+-    DEBUG_ASSERT(reserved == vertexUpdater.index());
++    DEBUG_ASSERT(reservedBeats == beatsUpdater.index());
++    DEBUG_ASSERT(reservedDownbeats == downbeatsUpdater.index());
+ 
+     material().setUniform(1, m_color);
+     markDirtyMaterial();
++    if (showBars) {
++        m_pDownbeatsNode->material().setUniform(1, m_downbeatColor);
++        m_pDownbeatsNode->markDirtyMaterial();
++    }
++
++    if (!showBars || numDownbeats == 0 || !m_barNumberColor.isValid() ||
++            m_barNumberColor.alpha() == 0) {
++        m_pBarNumbersNode->clear();
++        return true;
++    }
++
++    // Bar 1 starts at the first marker; the bars before it get no number.
++    const float textBreadth = m_isSlipRenderer ? rendererBreadth / 2 : rendererBreadth;
++    m_pBarNumbersNode->updateTexture(m_waveformRenderer->getContext(),
++            m_barNumberFontSize,
++            textBreadth * kBarNumberMaxHeight,
++            devicePixelRatio,
++            m_barNumberColor,
++            m_barNumberFontFamilies);
++
++    // Number every bar if they fit, else every 2nd, 4th, ... bar.
++    const int lastBar = floorDiv(firstBeatIndex + numBeats - 1, kBeatsPerBar) + 1;
++    const float numberWidth =
++            m_pBarNumbersNode->width(QString::number(std::max(lastBar, 1))) +
++            2 * kBarNumberGap;
++    const float barWidth = numBeats > 1
++            ? (m_beatXs.back() - m_beatXs.front()) / (numBeats - 1) * kBeatsPerBar
++            : 0.f;
++    int step = 1;
++    while (step < (1 << 16) && step * barWidth < numberWidth) {
++        step *= 2;
++    }
++
++    m_barNumbers.clear();
++    for (int i = firstDownbeat; i < numBeats; i += kBeatsPerBar) {
++        const int bar = floorDiv(firstBeatIndex + i, kBeatsPerBar) + 1;
++        if (bar < 1 || (bar - 1) % step != 0) {
++            continue;
++        }
++        m_barNumbers.push_back(DigitsRenderNode::Text{
++                m_beatXs[i] + kDownbeatWidth + kBarNumberGap,
++                0.f,
++                QString::number(bar)});
++    }
++    m_pBarNumbersNode->update(m_barNumbers);
+ 
+     return true;
+ }
+diff --git a/src/waveform/renderers/allshader/waveformrenderbeat.h b/src/waveform/renderers/allshader/waveformrenderbeat.h
+index 1b210534..206fe35b 100644
+--- a/src/waveform/renderers/allshader/waveformrenderbeat.h
++++ b/src/waveform/renderers/allshader/waveformrenderbeat.h
+@@ -1,9 +1,12 @@
+ #pragma once
+ 
+ #include <QColor>
++#include <QStringList>
++#include <vector>
+ 
+ #include "rendergraph/geometrynode.h"
+ #include "util/class.h"
++#include "waveform/renderers/allshader/digitsrenderer.h"
+ #include "waveform/renderers/waveformrendererabstract.h"
+ 
+ class QDomNode;
+@@ -13,6 +16,10 @@ namespace allshader {
+ class WaveformRenderBeat;
+ } // namespace allshader
+ 
++// The beat grid, drawn by this node itself. A skin that sets DownbeatColor
++// also gets bars: every fourth beat, counted from the grid's first marker,
++// drawn wider in that colour and numbered along the top (BarNumberColor,
++// BarNumberFont, BarNumberSize), by two child nodes drawn on top of the beats.
+ class allshader::WaveformRenderBeat final
+         : public QObject,
+           public ::WaveformRendererAbstract,
+@@ -38,9 +45,21 @@ class allshader::WaveformRenderBeat final
+ 
+   private:
+     QColor m_color;
++    QColor m_downbeatColor;
++    QColor m_barNumberColor;
++    QStringList m_barNumberFontFamilies;
++    float m_barNumberFontSize;
+     bool m_isSlipRenderer;
+ 
++    rendergraph::GeometryNode* m_pDownbeatsNode;
++    DigitsRenderNode* m_pBarNumbersNode;
++
++    // Kept between frames, so drawing one allocates nothing.
++    std::vector<float> m_beatXs;
++    std::vector<DigitsRenderNode::Text> m_barNumbers;
++
+     bool preprocessInner();
++    void clear();
+ 
+     DISALLOW_COPY_AND_ASSIGN(WaveformRenderBeat);
+ };
+-- 
+2.53.0.windows.3
+

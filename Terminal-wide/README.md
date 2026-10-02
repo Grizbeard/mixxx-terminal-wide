@@ -328,6 +328,21 @@ and a `WidgetStack` shows one. That means four waveform widgets for two decks;
 `WaveformWidgetFactory` skips the ones that are not visible, so the hidden pair
 costs nothing per frame.
 
+## Bars
+
+Every fourth beat line is wider and brighter (the scheme's dim text colour,
+`fg_dim`), and each bar's number sits beside it along the top of the waveform
+in the skin's monospace face and its text colour (`fg`). When the waveform is
+zoomed out too far for every number to fit, only every 2nd, 4th, ... bar is
+numbered.
+
+Mixxx finds beats, not bars, so bar 1 is where the beat grid starts: the first
+beat the analyser found, or the first marker of a grid imported from Serato,
+which Serato puts on a downbeat. When it is a beat off, `[ChannelN],
+beats_downbeat_earlier` and `beats_downbeat_later` move it one beat without
+moving the grid. The change is saved with the track, and works on BPM-locked
+tracks too. The bars need patch 0016; see *Requires*.
+
 ## Deck rows
 
 Under the tempo readouts, three rows the options page turns on and off:
@@ -429,12 +444,14 @@ geometry and type and no colour at all.
 
 ## Requires
 
-The skin loads on stock Mixxx 2.5+, but four things degrade without the core
+The skin loads on stock Mixxx 2.5+, but these things degrade without the core
 changes in [`patches/`](../patches/):
 
 - **vertical waveforms** — the *two columns* lane arrangement needs the
   rendergraph rotation. Without it the lanes still lay out side by side, but
   each one's signal renders wrong. Stay on *two rows* on a stock build.
+- **bars** — `<DownbeatColor>` and the bar numbers need patch 0016. Without it
+  every beat line looks the same.
 
 - `<UseCueColor>` — without it, hotcue markers keep the user's palette colours,
   so a monochrome scheme gets one stray coloured marker.
@@ -444,7 +461,7 @@ changes in [`patches/`](../patches/):
   Mixxx's built-in orange icons, which on a green-phosphor screen are the only
   colour on it.
 
-Only the first of those is a functional loss; for the rest nothing fails to
+Only the first two are functional losses; for the rest nothing fails to
 load, the monochrome schemes are just not quite monochrome.
 
 Library row height and font size are Mixxx *preferences*
