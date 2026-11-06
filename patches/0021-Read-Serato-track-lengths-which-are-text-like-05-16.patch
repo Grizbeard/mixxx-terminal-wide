@@ -1,0 +1,193 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Fri, 6 Nov 2026 15:44:54 -0600
+Subject: [PATCH 21/21] Read Serato track lengths, which are text like
+ "05:16.81"
+
+[AI-generated text: this description was written autonomously by an AI
+agent (Claude). Review it before relying on it or submitting it.]
+
+Serato's database V2 stores a track's length (tlen) as minutes and
+seconds, e.g. "05:16.81", but the Serato feature read it with
+QString::toInt(), which always failed, so every track in a Serato library
+had no duration. seratoTrackLengthInSeconds() reads minutes and seconds,
+hours, minutes and seconds, or plain seconds, keeping the fraction as
+Mixxx's own library does; a length it cannot read is stored as NULL
+rather than 0, so the column stays empty instead of showing 00:00.
+
+Tested on Windows: a new test covers minutes and seconds, hours, plain
+seconds and text that is not a length; it passes with the existing Serato
+tests. On the appliance, a Serato crate on a USB drive now shows every
+track's length.
+
+[End of AI-generated text.]
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ CMakeLists.txt                       |  1 +
+ src/library/serato/seratofeature.cpp | 41 ++++++++++++++++++++++------
+ src/library/serato/seratofeature.h   |  6 ++++
+ src/test/seratotracklengthtest.cpp   | 34 +++++++++++++++++++++++
+ 4 files changed, 73 insertions(+), 9 deletions(-)
+ create mode 100644 src/test/seratotracklengthtest.cpp
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fe7df9b920..b1c2b35122 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -2977,6 +2977,7 @@ if(BUILD_TESTING)
+     src/test/seratomarkerstest.cpp
+     src/test/seratomarkers2test.cpp
+     src/test/seratotagstest.cpp
++    src/test/seratotracklengthtest.cpp
+     src/test/signalpathtest.cpp
+     src/test/skincontext_test.cpp
+     src/test/softtakeover_test.cpp
+diff --git a/src/library/serato/seratofeature.cpp b/src/library/serato/seratofeature.cpp
+index 9655e80412..306a9160bf 100644
+--- a/src/library/serato/seratofeature.cpp
++++ b/src/library/serato/seratofeature.cpp
+@@ -7,6 +7,7 @@
+ #include <QtConcurrentRun>
+ #include <QtDebug>
+ #include <QtEndian>
++#include <cmath>
+ 
+ #include "library/dao/trackschema.h"
+ #include "library/library.h"
+@@ -23,6 +24,28 @@
+ #include "widget/wlibrary.h"
+ #include "widget/wlibrarytextbrowser.h"
+ 
++std::optional<double> seratoTrackLengthInSeconds(const QString& text) {
++    // Minutes and seconds, or hours, minutes and seconds. Only the seconds
++    // have a fraction.
++    const QStringList parts = text.trimmed().split(QLatin1Char(':'));
++    if (parts.size() > 3) {
++        return std::nullopt;
++    }
++    double seconds = 0;
++    for (int i = 0; i < parts.size(); ++i) {
++        bool ok;
++        const double value = parts.at(i).toDouble(&ok);
++        if (!ok || !std::isfinite(value) || value < 0) {
++            return std::nullopt;
++        }
++        if (i < parts.size() - 1 && value != std::floor(value)) {
++            return std::nullopt;
++        }
++        seconds = seconds * 60 + value;
++    }
++    return seconds;
++}
++
+ namespace {
+ 
+ // Serato Database Field IDs
+@@ -71,7 +94,7 @@ struct serato_track_t {
+     QString grouping;
+     QString label;
+     int year = -1;
+-    int duration = 0;
++    std::optional<double> durationInSeconds;
+     QString bitrate;
+     QString samplerate;
+     double bpm = -1.0;
+@@ -184,14 +207,10 @@ inline bool parseTrack(serato_track_t* track, QIODevice* buffer) {
+         case FieldId::Genre:
+             track->genre = utf16beToQString(data, fieldSize);
+             break;
+-        case FieldId::Length: {
+-            bool ok;
+-            int duration = utf16beToQString(data, fieldSize).toInt(&ok);
+-            if (ok) {
+-                track->duration = duration;
+-            }
++        case FieldId::Length:
++            track->durationInSeconds =
++                    seratoTrackLengthInSeconds(utf16beToQString(data, fieldSize));
+             break;
+-        }
+         case FieldId::Bitrate:
+             track->bitrate = utf16beToQString(data, fieldSize);
+             break;
+@@ -590,7 +609,11 @@ QString parseDatabase(mixxx::DbConnectionPoolPtr dbConnectionPool,
+                 query.bindValue(":comment", track.comment);
+                 query.bindValue(":grouping", track.grouping);
+                 query.bindValue(":year", track.year);
+-                query.bindValue(":duration", track.duration);
++                // A length that can't be read is left unknown rather than
++                // shown as 00:00.
++                query.bindValue(":duration",
++                        track.durationInSeconds ? QVariant(*track.durationInSeconds)
++                                                : QVariant());
+                 query.bindValue(":bitrate", track.bitrate);
+                 query.bindValue(":samplerate", track.samplerate);
+                 query.bindValue(":bpm", track.bpm);
+diff --git a/src/library/serato/seratofeature.h b/src/library/serato/seratofeature.h
+index b53653ab9b..1d60a95192 100644
+--- a/src/library/serato/seratofeature.h
++++ b/src/library/serato/seratofeature.h
+@@ -13,6 +13,7 @@
+ 
+ #include <QFuture>
+ #include <QFutureWatcher>
++#include <optional>
+ 
+ #include "library/baseexternallibraryfeature.h"
+ #include "util/parented_ptr.h"
+@@ -20,6 +21,11 @@
+ class SeratoPlaylistModel;
+ class BaseTrackCache;
+ 
++/// Reads a track length as Serato's database stores it (tlen): text in
++/// minutes and seconds such as "05:16.81", with hours in front for long
++/// tracks. Returns the length in seconds, or nothing if the text is not one.
++std::optional<double> seratoTrackLengthInSeconds(const QString& text);
++
+ class SeratoFeature : public BaseExternalLibraryFeature {
+     Q_OBJECT
+   public:
+diff --git a/src/test/seratotracklengthtest.cpp b/src/test/seratotracklengthtest.cpp
+new file mode 100644
+index 0000000000..a50d469863
+--- /dev/null
++++ b/src/test/seratotracklengthtest.cpp
+@@ -0,0 +1,34 @@
++#include <gtest/gtest.h>
++
++#include "library/serato/seratofeature.h"
++
++namespace {
++
++TEST(SeratoTrackLengthTest, MinutesAndSeconds) {
++    // As Serato's database V2 stores it.
++    EXPECT_DOUBLE_EQ(316.81, *seratoTrackLengthInSeconds(QStringLiteral("05:16.81")));
++    EXPECT_DOUBLE_EQ(225.0, *seratoTrackLengthInSeconds(QStringLiteral("03:45")));
++    EXPECT_DOUBLE_EQ(0.5, *seratoTrackLengthInSeconds(QStringLiteral("00:00.50")));
++}
++
++TEST(SeratoTrackLengthTest, HoursForLongTracks) {
++    EXPECT_DOUBLE_EQ(3723.25, *seratoTrackLengthInSeconds(QStringLiteral("1:02:03.25")));
++    // A mix over an hour may also just count the minutes on.
++    EXPECT_DOUBLE_EQ(4500.0, *seratoTrackLengthInSeconds(QStringLiteral("75:00.00")));
++}
++
++TEST(SeratoTrackLengthTest, PlainSeconds) {
++    EXPECT_DOUBLE_EQ(42.0, *seratoTrackLengthInSeconds(QStringLiteral("42")));
++}
++
++TEST(SeratoTrackLengthTest, NotALength) {
++    EXPECT_FALSE(seratoTrackLengthInSeconds(QString()));
++    EXPECT_FALSE(seratoTrackLengthInSeconds(QStringLiteral("   ")));
++    EXPECT_FALSE(seratoTrackLengthInSeconds(QStringLiteral("abc")));
++    EXPECT_FALSE(seratoTrackLengthInSeconds(QStringLiteral("05:")));
++    EXPECT_FALSE(seratoTrackLengthInSeconds(QStringLiteral("05.5:16")));
++    EXPECT_FALSE(seratoTrackLengthInSeconds(QStringLiteral("-1:00")));
++    EXPECT_FALSE(seratoTrackLengthInSeconds(QStringLiteral("1:2:3:4")));
++}
++
++} // namespace
+-- 
+2.53.0.windows.3
+

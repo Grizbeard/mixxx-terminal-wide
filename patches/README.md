@@ -49,8 +49,9 @@ do not want and the rest still apply.
 | 0018 `<OnScreenKeyboard>` | no keyboard comes up when the browse page's search line is tapped, so a panel with no keyboard cannot search; the page is otherwise unchanged |
 | 0019 key text in the chosen notation | a Serato or Rekordbox crate shows its keys as the other software wrote them, often "Am" next to "8A", whatever notation Mixxx is set to (not a skin feature; the appliance sets `[Key],KeyNotation` to Lancelot) |
 | 0020 key colours from key text | a Serato or Rekordbox crate's keys have no colour bar beside them |
+| 0021 Serato track lengths | no track in a Serato crate shows its length (not a skin feature) |
 
-0007, 0013, 0014, 0015, 0016, 0017, 0018, 0019 and 0020 cost features. The rest are cosmetic, and the skin is built to
+0007, 0013, 0014, 0015, 0016, 0017, 0018, 0019, 0020 and 0021 cost features. The rest are cosmetic, and the skin is built to
 degrade quietly without them.
 
 There is no 0012 here. It was wet-only effect units, for post-fader effects
