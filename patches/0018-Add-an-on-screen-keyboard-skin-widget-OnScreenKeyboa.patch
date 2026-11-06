@@ -1,0 +1,392 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Fri, 6 Nov 2026 12:20:39 -0600
+Subject: [PATCH 18/18] Add an on-screen keyboard skin widget,
+ <OnScreenKeyboard>
+
+[AI-generated text: this description was written autonomously by an AI
+agent (Claude). Review it before relying on it or submitting it.]
+
+A touch keyboard for a panel with no keyboard: digits, letters, - . and ',
+backspace (repeating), clear, space and done. Its keys never take the
+focus, so they type into whichever field has it, as a real keyboard
+would; a skin shows it while [Library],focused_widget says the search box
+has the focus. clear empties the field, and done sends Return, a second
+time if the first only ran the search, so the search box moves on to the
+results and the skin can put the keyboard away. No shift: library search
+ignores case.
+
+Tested on Windows: new tests type into a line edit and an editable
+combo box through the keys, check that clear empties both and that no
+key takes the focus; they pass with the existing widget and skin tests.
+
+[End of AI-generated text.]
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ CMakeLists.txt                       |   2 +
+ src/skin/legacy/legacyskinparser.cpp |   9 ++
+ src/skin/legacy/legacyskinparser.h   |   1 +
+ src/test/wonscreenkeyboard_test.cpp  |  66 +++++++++++
+ src/widget/wonscreenkeyboard.cpp     | 160 +++++++++++++++++++++++++++
+ src/widget/wonscreenkeyboard.h       |  42 +++++++
+ 6 files changed, 280 insertions(+)
+ create mode 100644 src/test/wonscreenkeyboard_test.cpp
+ create mode 100644 src/widget/wonscreenkeyboard.cpp
+ create mode 100644 src/widget/wonscreenkeyboard.h
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index bb7e0af2bc..6d0b757cdd 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1796,6 +1796,7 @@ add_library(
+   src/widget/wstarratingaction.cpp
+   src/widget/wrecordingduration.cpp
+   src/widget/wscrollable.cpp
++  src/widget/wonscreenkeyboard.cpp
+   src/widget/wsearchlineedit.cpp
+   src/widget/wsearchrelatedtracksmenu.cpp
+   src/widget/wsettingscheckboxlabel.cpp
+@@ -3003,6 +3004,7 @@ if(BUILD_TESTING)
+     src/test/trackupdate_test.cpp
+     src/test/uuid_test.cpp
+     src/test/wbatterytest.cpp
++    src/test/wonscreenkeyboard_test.cpp
+     src/test/wpushbutton_test.cpp
+     src/test/wwidgetstack_test.cpp
+     src/util/moc_included_test.cpp
+diff --git a/src/skin/legacy/legacyskinparser.cpp b/src/skin/legacy/legacyskinparser.cpp
+index b4d09530aa..fbcc24c909 100644
+--- a/src/skin/legacy/legacyskinparser.cpp
++++ b/src/skin/legacy/legacyskinparser.cpp
+@@ -63,6 +63,7 @@
+ #include "widget/wnumberdb.h"
+ #include "widget/wnumberpos.h"
+ #include "widget/wnumberrate.h"
++#include "widget/wonscreenkeyboard.h"
+ #include "widget/woverview.h"
+ #include "widget/wpixmapstore.h"
+ #include "widget/wplaybutton.h"
+@@ -606,6 +607,8 @@ QList<QWidget*> LegacySkinParser::parseNode(const QDomElement& node) {
+         result = wrapWidget(parseCoverArt(node));
+     } else if (nodeName == "SearchBox") {
+         result = wrapWidget(parseSearchBox(node));
++    } else if (nodeName == "OnScreenKeyboard") {
++        result = wrapWidget(parseOnScreenKeyboard(node));
+     } else if (nodeName == "WidgetGroup") {
+         result = wrapWidget(parseWidgetGroup(node));
+     } else if (nodeName == "TrackWidgetGroup") {
+@@ -1575,6 +1578,12 @@ QWidget* LegacySkinParser::parseSearchBox(const QDomElement& node) {
+     return pLineEditSearch;
+ }
+ 
++QWidget* LegacySkinParser::parseOnScreenKeyboard(const QDomElement& node) {
++    WOnScreenKeyboard* pKeyboard = new WOnScreenKeyboard(m_pParent);
++    commonWidgetSetup(node, pKeyboard);
++    return pKeyboard;
++}
++
+ QWidget* LegacySkinParser::parseCoverArt(const QDomElement& node) {
+     QString group = lookupNodeGroup(node);
+     BaseTrackPlayer* pPlayer = nullptr;
+diff --git a/src/skin/legacy/legacyskinparser.h b/src/skin/legacy/legacyskinparser.h
+index bb376e6543..ecdb315872 100644
+--- a/src/skin/legacy/legacyskinparser.h
++++ b/src/skin/legacy/legacyskinparser.h
+@@ -125,6 +125,7 @@ class LegacySkinParser : public QObject, public SkinParser {
+     // Library widgets.
+     QWidget* parseTableView(const QDomElement& node);
+     QWidget* parseSearchBox(const QDomElement& node);
++    QWidget* parseOnScreenKeyboard(const QDomElement& node);
+     QWidget* parseLibrary(const QDomElement& node);
+     QWidget* parseLibrarySidebar(const QDomElement& node);
+     QWidget* parseBattery(const QDomElement& node);
+diff --git a/src/test/wonscreenkeyboard_test.cpp b/src/test/wonscreenkeyboard_test.cpp
+new file mode 100644
+index 0000000000..d85c532c6f
+--- /dev/null
++++ b/src/test/wonscreenkeyboard_test.cpp
+@@ -0,0 +1,66 @@
++#include "widget/wonscreenkeyboard.h"
++
++#include <gtest/gtest.h>
++
++#include <QComboBox>
++#include <QLineEdit>
++#include <QPushButton>
++
++namespace {
++
++class WOnScreenKeyboardTest : public ::testing::Test {
++  protected:
++    void press(const QString& label) {
++        for (QPushButton* pKey : keyboard.findChildren<QPushButton*>()) {
++            if (pKey->text() == label) {
++                pKey->click();
++                return;
++            }
++        }
++        FAIL() << "no key " << label.toStdString();
++    }
++
++    WOnScreenKeyboard keyboard;
++};
++
++} // namespace
++
++TEST_F(WOnScreenKeyboardTest, keysTypeIntoTheTarget) {
++    QLineEdit lineEdit;
++    keyboard.setTarget(&lineEdit);
++    for (const QString& key : {"d", "j", "r", "u", "m", "space", "9", "-", "'", "."}) {
++        press(key);
++    }
++    EXPECT_EQ(QStringLiteral("djrum 9-'."), lineEdit.text());
++    press(QStringLiteral("⌫"));
++    EXPECT_EQ(QStringLiteral("djrum 9-'"), lineEdit.text());
++    press(QStringLiteral("clear"));
++    EXPECT_TRUE(lineEdit.text().isEmpty());
++}
++
++TEST_F(WOnScreenKeyboardTest, clearEmptiesAnEditableComboBox) {
++    // The library search box is an editable combo box.
++    QComboBox comboBox;
++    comboBox.setEditable(true);
++    keyboard.setTarget(&comboBox);
++    press(QStringLiteral("a"));
++    press(QStringLiteral("b"));
++    EXPECT_EQ(QStringLiteral("ab"), comboBox.currentText());
++    press(QStringLiteral("clear"));
++    EXPECT_TRUE(comboBox.currentText().isEmpty());
++}
++
++TEST_F(WOnScreenKeyboardTest, keysNeverTakeTheFocus) {
++    EXPECT_EQ(Qt::NoFocus, keyboard.focusPolicy());
++    const auto keys = keyboard.findChildren<QPushButton*>();
++    EXPECT_EQ(40 + 3, keys.size());
++    for (QPushButton* pKey : keys) {
++        EXPECT_EQ(Qt::NoFocus, pKey->focusPolicy()) << pKey->text().toStdString();
++    }
++}
++
++TEST_F(WOnScreenKeyboardTest, withNothingFocusedKeysDoNothing) {
++    press(QStringLiteral("a"));
++    press(QStringLiteral("done"));
++    press(QStringLiteral("clear"));
++}
+diff --git a/src/widget/wonscreenkeyboard.cpp b/src/widget/wonscreenkeyboard.cpp
+new file mode 100644
+index 0000000000..b9358bc432
+--- /dev/null
++++ b/src/widget/wonscreenkeyboard.cpp
+@@ -0,0 +1,160 @@
++#include "widget/wonscreenkeyboard.h"
++
++#include <QApplication>
++#include <QComboBox>
++#include <QEvent>
++#include <QGridLayout>
++#include <QKeyEvent>
++#include <QLineEdit>
++#include <QPushButton>
++
++#include "moc_wonscreenkeyboard.cpp"
++
++namespace {
++
++constexpr int kColumns = 10;
++
++// Search text is matched without regard to case, so there is no shift.
++const QString kRows[] = {
++        QStringLiteral("1234567890"),
++        QStringLiteral("qwertyuiop"),
++        QStringLiteral("asdfghjkl"),
++        QStringLiteral("zxcvbnm-.'"),
++};
++
++int keyForCharacter(QChar c) {
++    if (c >= QLatin1Char('a') && c <= QLatin1Char('z')) {
++        return Qt::Key_A + (c.unicode() - 'a');
++    }
++    if (c >= QLatin1Char('0') && c <= QLatin1Char('9')) {
++        return Qt::Key_0 + (c.unicode() - '0');
++    }
++    switch (c.unicode()) {
++    case '-':
++        return Qt::Key_Minus;
++    case '.':
++        return Qt::Key_Period;
++    case '\'':
++        return Qt::Key_Apostrophe;
++    default:
++        return Qt::Key_unknown;
++    }
++}
++
++} // namespace
++
++WOnScreenKeyboard::WOnScreenKeyboard(QWidget* pParent)
++        : QWidget(pParent),
++          WBaseWidget(this) {
++    // Tapping the keyboard itself must leave the focus where it is.
++    setFocusPolicy(Qt::NoFocus);
++    auto* pLayout = new QGridLayout(this);
++    pLayout->setContentsMargins(0, 0, 0, 0);
++    pLayout->setSpacing(0);
++    for (int column = 0; column < kColumns; ++column) {
++        pLayout->setColumnStretch(column, 1);
++    }
++
++    int row = 0;
++    for (const QString& characters : kRows) {
++        for (int column = 0; column < characters.size(); ++column) {
++            const QChar c = characters.at(column);
++            QPushButton* pKey = addKey(QString(c), QStringLiteral("KeyboardKey"), row, column);
++            connect(pKey, &QPushButton::clicked, this, [this, c]() {
++                sendKey(keyForCharacter(c), QString(c));
++            });
++        }
++        ++row;
++    }
++
++    // Backspace ends the row with nine letters, where a keyboard has it.
++    QPushButton* pBackspace = addKey(
++            QStringLiteral("⌫"), QStringLiteral("KeyboardAction"), 2, kColumns - 1);
++    pBackspace->setAutoRepeat(true);
++    pBackspace->setAutoRepeatDelay(400);
++    pBackspace->setAutoRepeatInterval(60);
++    connect(pBackspace, &QPushButton::clicked, this, [this]() {
++        sendKey(Qt::Key_Backspace, QString());
++    });
++
++    connect(addKey(QStringLiteral("clear"), QStringLiteral("KeyboardAction"), row, 0, 2),
++            &QPushButton::clicked,
++            this,
++            &WOnScreenKeyboard::clearText);
++    connect(addKey(QStringLiteral("space"), QStringLiteral("KeyboardSpace"), row, 2, 6),
++            &QPushButton::clicked,
++            this,
++            [this]() {
++                sendKey(Qt::Key_Space, QStringLiteral(" "));
++            });
++    connect(addKey(QStringLiteral("done"), QStringLiteral("KeyboardAction"), row, 8, 2),
++            &QPushButton::clicked,
++            this,
++            &WOnScreenKeyboard::done);
++}
++
++QPushButton* WOnScreenKeyboard::addKey(const QString& label,
++        const QString& objectName,
++        int row,
++        int column,
++        int columnSpan) {
++    auto* pKey = new QPushButton(label, this);
++    pKey->setObjectName(objectName);
++    pKey->setFocusPolicy(Qt::NoFocus);
++    pKey->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
++    static_cast<QGridLayout*>(layout())->addWidget(pKey, row, column, 1, columnSpan);
++    return pKey;
++}
++
++QWidget* WOnScreenKeyboard::target() const {
++    if (m_pTarget) {
++        return m_pTarget;
++    }
++    return QApplication::focusWidget();
++}
++
++void WOnScreenKeyboard::sendKey(int key, const QString& text) {
++    QWidget* pTarget = target();
++    if (!pTarget) {
++        return;
++    }
++    QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier, text);
++    QApplication::sendEvent(pTarget, &press);
++    QKeyEvent release(QEvent::KeyRelease, key, Qt::NoModifier, text);
++    QApplication::sendEvent(pTarget, &release);
++}
++
++void WOnScreenKeyboard::clearText() {
++    QWidget* pTarget = target();
++    // An editable combo box, such as the search box, keeps its text in a line
++    // edit; clearing that one reaches the box's text-changed signals.
++    if (auto* pComboBox = qobject_cast<QComboBox*>(pTarget)) {
++        if (pComboBox->lineEdit()) {
++            pComboBox->lineEdit()->clear();
++        }
++    } else if (auto* pLineEdit = qobject_cast<QLineEdit*>(pTarget)) {
++        pLineEdit->clear();
++    }
++}
++
++void WOnScreenKeyboard::done() {
++    QWidget* pTarget = target();
++    if (!pTarget) {
++        return;
++    }
++    // Return runs the search and moves on to the results. The search box only
++    // moves on once its search has gone out, so a second Return follows when
++    // the first one only ran it; Escape would move on without saving the
++    // search to its history.
++    sendKey(Qt::Key_Return, QStringLiteral("\r"));
++    if (target() == pTarget && pTarget->hasFocus()) {
++        sendKey(Qt::Key_Return, QStringLiteral("\r"));
++    }
++}
++
++bool WOnScreenKeyboard::event(QEvent* pEvent) {
++    if (pEvent->type() == QEvent::ToolTip) {
++        updateTooltip();
++    }
++    return QWidget::event(pEvent);
++}
+diff --git a/src/widget/wonscreenkeyboard.h b/src/widget/wonscreenkeyboard.h
+new file mode 100644
+index 0000000000..373050495b
+--- /dev/null
++++ b/src/widget/wonscreenkeyboard.h
+@@ -0,0 +1,42 @@
++#pragma once
++
++#include <QPointer>
++#include <QString>
++#include <QWidget>
++
++#include "widget/wbasewidget.h"
++
++class QPushButton;
++
++/// A touch keyboard for typing into a text field, such as the library search
++/// box, on a panel that has no keyboard. Its keys never take the focus, so they
++/// type into whichever field has it, as a real keyboard would.
++///
++/// The skin decides when it is on screen, e.g. while [Library],focused_widget
++/// says the search box has the focus.
++class WOnScreenKeyboard : public QWidget, public WBaseWidget {
++    Q_OBJECT
++  public:
++    explicit WOnScreenKeyboard(QWidget* pParent = nullptr);
++
++    /// Type into pTarget rather than into the focused widget.
++    void setTarget(QWidget* pTarget) {
++        m_pTarget = pTarget;
++    }
++
++  protected:
++    bool event(QEvent* pEvent) override;
++
++  private:
++    QPushButton* addKey(const QString& label,
++            const QString& objectName,
++            int row,
++            int column,
++            int columnSpan = 1);
++    QWidget* target() const;
++    void sendKey(int key, const QString& text);
++    void clearText();
++    void done();
++
++    QPointer<QWidget> m_pTarget;
++};
+-- 
+2.53.0.windows.3
+

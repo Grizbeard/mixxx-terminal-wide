@@ -1,0 +1,133 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Fri, 6 Nov 2026 13:00:51 -0600
+Subject: [PATCH 20/20] Colour keys without a key id by the key their text
+ names
+
+[AI-generated text: this description was written autonomously by an AI
+agent (Claude). Review it before relying on it or submitting it.]
+
+The library colours a key column cell from the row's key id, so a Serato
+or Rekordbox library, whose rows carry key text only, showed its keys
+without colour. KeyUtils::chromaticKeyFromKeyTextAndIdFields() takes the
+key id, or without one reads the text as a key, and the key colour now
+uses it; with no tuning frequency those rows get the key's plain colour.
+
+Tested on Windows: a new test checks that the key id wins over the
+text, that "Am", "8A" and "1m" without an id are A minor, and that other
+text is no key; it passes with the existing key and library tests.
+
+[End of AI-generated text.]
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/library/basetracktablemodel.cpp | 17 +++++------------
+ src/test/keyutilstest.cpp           | 19 +++++++++++++++++++
+ src/track/keyutils.cpp              | 17 +++++++++++++++++
+ src/track/keyutils.h                |  4 ++++
+ 4 files changed, 45 insertions(+), 12 deletions(-)
+
+diff --git a/src/library/basetracktablemodel.cpp b/src/library/basetracktablemodel.cpp
+index a08fe9aca6..a729e02727 100644
+--- a/src/library/basetracktablemodel.cpp
++++ b/src/library/basetracktablemodel.cpp
+@@ -929,18 +929,11 @@ QVariant BaseTrackTableModel::roleValue(
+             if (!s_keyColorsEnabled) {
+                 return QVariant();
+             }
+-            const QVariant keyCodeValue = rawSiblingValue(
+-                    index,
+-                    ColumnCache::COLUMN_LIBRARYTABLE_KEY_ID);
+-            if (keyCodeValue.isNull()) {
+-                return QVariant();
+-            }
+-            bool ok;
+-            const auto keyCode = keyCodeValue.toInt(&ok);
+-            VERIFY_OR_DEBUG_ASSERT(ok) {
+-                return QVariant();
+-            }
+-            const auto key = KeyUtils::keyFromNumericValue(keyCode);
++            // A row without a key id, as in a Serato or Rekordbox library,
++            // is coloured by the key its text names, as it is shown.
++            const auto key = KeyUtils::chromaticKeyFromKeyTextAndIdFields(
++                    rawSiblingValue(index, ColumnCache::COLUMN_LIBRARYTABLE_KEY),
++                    rawSiblingValue(index, ColumnCache::COLUMN_LIBRARYTABLE_KEY_ID));
+             if (key == mixxx::track::io::key::INVALID || !s_keyColorPalette.has_value()) {
+                 return QVariant();
+             }
+diff --git a/src/test/keyutilstest.cpp b/src/test/keyutilstest.cpp
+index 1f74d05fa4..8138226ef0 100644
+--- a/src/test/keyutilstest.cpp
++++ b/src/test/keyutilstest.cpp
+@@ -68,6 +68,25 @@ TEST_F(KeyUtilsTest, KeyTextWithoutIdFollowsTheNotation) {
+     EXPECT_TRUE(KeyUtils::keyFromKeyTextAndIdFields(QVariant(), QVariant()).isNull());
+ }
+ 
++TEST_F(KeyUtilsTest, ChromaticKeyFromKeyTextAndIdFields) {
++    // The key id wins over the text; without one, the text is read as a key,
++    // which is what colours a Serato or Rekordbox library's keys.
++    EXPECT_EQ(mixxx::track::io::key::C_MAJOR,
++            KeyUtils::chromaticKeyFromKeyTextAndIdFields(QVariant(QStringLiteral("Am")),
++                    QVariant(static_cast<int>(mixxx::track::io::key::C_MAJOR))));
++    for (const char* text : {"Am", "8A", "1m"}) {
++        EXPECT_EQ(mixxx::track::io::key::A_MINOR,
++                KeyUtils::chromaticKeyFromKeyTextAndIdFields(
++                        QVariant(QString(text)), QVariant()))
++                << text;
++    }
++    EXPECT_EQ(mixxx::track::io::key::INVALID,
++            KeyUtils::chromaticKeyFromKeyTextAndIdFields(
++                    QVariant(QStringLiteral("not a key")), QVariant()));
++    EXPECT_EQ(mixxx::track::io::key::INVALID,
++            KeyUtils::chromaticKeyFromKeyTextAndIdFields(QVariant(), QVariant()));
++}
++
+ TEST_F(KeyUtilsTest, KeyNameNotation) {
+     // Invalid letter
+     // (actually valid in traditional German notation where B is H and Bb is B -
+diff --git a/src/track/keyutils.cpp b/src/track/keyutils.cpp
+index 9c4210f174..d36373c013 100644
+--- a/src/track/keyutils.cpp
++++ b/src/track/keyutils.cpp
+@@ -856,6 +856,23 @@ QVariant KeyUtils::keyFromKeyTextAndIdFields(
+     return QVariant{KeyUtils::keyToString(key)};
+ }
+ 
++// static
++mixxx::track::io::key::ChromaticKey KeyUtils::chromaticKeyFromKeyTextAndIdFields(
++        const QVariant& keyTextField, const QVariant& keyIdField) {
++    if (keyIdField.isNull()) {
++        if (keyTextField.isNull()) {
++            return mixxx::track::io::key::INVALID;
++        }
++        return guessKeyFromText(keyTextField.toString());
++    }
++    bool ok;
++    const auto keyId = keyIdField.toInt(&ok);
++    if (!ok) {
++        return mixxx::track::io::key::INVALID;
++    }
++    return keyFromNumericValue(keyId);
++}
++
+ // static
+ QString KeyUtils::keyFromKeyTextAndIdValues(const QString& keyText, const ChromaticKey& keyId) {
+     return keyId == mixxx::track::io::key::INVALID ? keyTextInUserNotation(keyText)
+diff --git a/src/track/keyutils.h b/src/track/keyutils.h
+index bbd350fa67..55dee5fed5 100644
+--- a/src/track/keyutils.h
++++ b/src/track/keyutils.h
+@@ -138,6 +138,10 @@ class KeyUtils {
+ 
+     static QVariant keyFromKeyTextAndIdFields(
+             const QVariant& keyTextField, const QVariant& keyIdField);
++    /// The key a library row names: its key id, or without one, as in a
++    /// Serato or Rekordbox library, whatever its key text reads as.
++    static mixxx::track::io::key::ChromaticKey chromaticKeyFromKeyTextAndIdFields(
++            const QVariant& keyTextField, const QVariant& keyIdField);
+     static QString keyFromKeyTextAndIdValues(const QString& keyText,
+             const mixxx::track::io::key::ChromaticKey& key);
+ 
+-- 
+2.53.0.windows.3
+

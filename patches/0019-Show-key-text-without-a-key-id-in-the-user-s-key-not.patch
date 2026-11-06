@@ -1,0 +1,115 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Grizbeard <justin.morken@gmail.com>
+Date: Fri, 6 Nov 2026 12:40:33 -0600
+Subject: [PATCH 19/19] Show key text without a key id in the user's key
+ notation
+
+[AI-generated text: this description was written autonomously by an AI
+agent (Claude). Review it before relying on it or submitting it.]
+
+A library column whose key has no key id behind it, such as a Serato or
+Rekordbox library's, was shown exactly as stored, and those libraries mix
+notations: one Serato crate shows "Am" next to "8A". Such text is now read
+as a key and shown in the notation chosen in the preferences, so a
+Lancelot (Camelot) choice reaches those views too; text that is not a key
+is shown as before. Their sort already read the text as a key in the
+chosen notation's order.
+
+Tested on Windows: a new test reads "Am", "8A" and "1m" without a key
+id as the same key in the user's notation and leaves other text alone;
+it passes with the existing key, cache, Serato and Rekordbox tests.
+
+[End of AI-generated text.]
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/test/keyutilstest.cpp | 22 ++++++++++++++++++++++
+ src/track/keyutils.cpp    | 27 ++++++++++++++++++++++++---
+ 2 files changed, 46 insertions(+), 3 deletions(-)
+
+diff --git a/src/test/keyutilstest.cpp b/src/test/keyutilstest.cpp
+index 7d1a141b0e..1f74d05fa4 100644
+--- a/src/test/keyutilstest.cpp
++++ b/src/test/keyutilstest.cpp
+@@ -46,6 +46,28 @@ TEST_F(KeyUtilsTest, LancelotNotation) {
+             KeyUtils::guessKeyFromText("\t10AA  "));
+ }
+ 
++TEST_F(KeyUtilsTest, KeyTextWithoutIdFollowsTheNotation) {
++    // A Serato library mixes notations; with no key id, each is shown as the
++    // key it names, in the user's notation.
++    const QString aMinor = KeyUtils::keyToString(mixxx::track::io::key::A_MINOR);
++    for (const char* text : {"Am", "8A", "1m"}) {
++        EXPECT_EQ(aMinor,
++                KeyUtils::keyFromKeyTextAndIdFields(QVariant(QString(text)), QVariant())
++                        .toString())
++                << text;
++        EXPECT_EQ(aMinor,
++                KeyUtils::keyFromKeyTextAndIdValues(
++                        QString(text), mixxx::track::io::key::INVALID))
++                << text;
++    }
++    // Text that is not a key, and no key at all, stay as they are.
++    EXPECT_EQ(QStringLiteral("not a key"),
++            KeyUtils::keyFromKeyTextAndIdFields(
++                    QVariant(QStringLiteral("not a key")), QVariant())
++                    .toString());
++    EXPECT_TRUE(KeyUtils::keyFromKeyTextAndIdFields(QVariant(), QVariant()).isNull());
++}
++
+ TEST_F(KeyUtilsTest, KeyNameNotation) {
+     // Invalid letter
+     // (actually valid in traditional German notation where B is H and Bb is B -
+diff --git a/src/track/keyutils.cpp b/src/track/keyutils.cpp
+index 85b6fdeee2..9c4210f174 100644
+--- a/src/track/keyutils.cpp
++++ b/src/track/keyutils.cpp
+@@ -804,6 +804,22 @@ int KeyUtils::keyToCircleOfFifthsOrder(mixxx::track::io::key::ChromaticKey key,
+     }
+ }
+ 
++namespace {
++
++/// Key text with no key id behind it, such as a Serato or Rekordbox library's,
++/// in the user's notation when it can be read as a key: those libraries mix
++/// "Am" with "8A", depending on what wrote them. Text that is not a key is
++/// left as it is.
++QString keyTextInUserNotation(const QString& keyText) {
++    const auto key = KeyUtils::guessKeyFromText(keyText);
++    if (key == mixxx::track::io::key::INVALID) {
++        return keyText;
++    }
++    return KeyUtils::keyToString(key);
++}
++
++} // namespace
++
+ // static
+ QVariant KeyUtils::keyFromKeyTextAndIdFields(
+         const QVariant& keyTextField, const QVariant& keyIdField) {
+@@ -816,8 +832,12 @@ QVariant KeyUtils::keyFromKeyTextAndIdFields(
+     // currently stored in the DB) then lookup the key and render it
+     // using the user's selected notation.
+     if (keyIdField.isNull()) {
+-        // Otherwise, just use the KEY column value as is
+-        return keyTextField;
++        // Otherwise, use the KEY column value, in the user's notation if it
++        // is a key
++        if (keyTextField.isNull()) {
++            return keyTextField;
++        }
++        return QVariant{keyTextInUserNotation(keyTextField.toString())};
+     }
+     // Convert or clear invalid values
+     VERIFY_OR_DEBUG_ASSERT(keyIdField.canConvert<int>()) {
+@@ -838,5 +858,6 @@ QVariant KeyUtils::keyFromKeyTextAndIdFields(
+ 
+ // static
+ QString KeyUtils::keyFromKeyTextAndIdValues(const QString& keyText, const ChromaticKey& keyId) {
+-    return keyId == mixxx::track::io::key::INVALID ? keyText : KeyUtils::keyToString(keyId);
++    return keyId == mixxx::track::io::key::INVALID ? keyTextInUserNotation(keyText)
++                                                   : KeyUtils::keyToString(keyId);
+ }
+-- 
+2.53.0.windows.3
+
