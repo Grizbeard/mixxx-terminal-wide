@@ -880,3 +880,79 @@ QProgressBar {
 QProgressBar::chunk {
   background-color: #e4e6e7;
 }
+
+/* ---------------------------------------------------------- sample strip -- */
+/* The strip is boxed like the panels around it; each slot is a recessed cell,
+   so eight of them read as eight things and not as one row of buttons. */
+#SamplerStrip,
+#SamplerBank {
+  background-color: #000000;
+}
+
+#SamplerSlot {
+  background-color: #000000;
+  border: 1px solid #32383c;
+}
+
+#SamplerSlotHead,
+#SamplerSlotButtons {
+  background: transparent;
+}
+
+#SamplerName {
+  color: #939a9f;
+  background: transparent;
+}
+
+#SamplerTitle {
+  color: #e4e6e7;
+  background: transparent;
+}
+
+/* Lit while the sample sounds, in the deck's play hue: the same thing it
+   means on a deck. */
+#Mixxx WPushButton#SamplerPlay[displayValue="1"] {
+  background-color: #e4e6e7;
+  color: #000000;
+}
+
+/* Navigation, like the page tabs: muted when shown. */
+#Mixxx WPushButton#SamplerToggle[displayValue="1"] {
+  background-color: #2e3438;
+  color: #f7f7f8;
+}
+
+#Mixxx WPushButton#SamplerToggle[displayValue="0"] {
+  background-color: #111415;
+  color: #939a9f;
+}
+
+/* -------------------------------------------------------- search keyboard -- */
+/* Keys are the same dim blocks as every button at rest; the one under the
+   finger fills with the accent, the way an engaged button does, so a tap is
+   seen to land. */
+#SearchKeyboardBox,
+#SearchKeyboard {
+  background-color: #000000;
+}
+
+#SearchKeyboard QPushButton {
+  background-color: #111415;
+  color: #f7f7f8;
+  border: none;
+}
+
+#SearchKeyboard QPushButton:pressed {
+  background-color: #e4e6e7;
+  color: #000000;
+}
+
+#SearchKeyboard QPushButton#KeyboardAction,
+#SearchKeyboard QPushButton#KeyboardSpace {
+  color: #939a9f;
+}
+
+#SearchKeyboard QPushButton#KeyboardAction:pressed,
+#SearchKeyboard QPushButton#KeyboardSpace:pressed {
+  color: #000000;
+}

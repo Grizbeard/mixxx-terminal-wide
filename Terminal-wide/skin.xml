@@ -80,6 +80,13 @@
       <attribute persist="true" config_key="[Skin],show_loop_controls">1</attribute>
       <attribute persist="true" config_key="[Skin],show_beatjump_controls">0</attribute>
 
+      <!-- What SELECT switches the DJM-T1's hot cue buttons to, read by the
+           DJM-T1_Custom mapping: 0 sampler, 1 cue loop, 2 loop roll. -->
+      <attribute persist="true" config_key="[TerminalWide],pad_mode">0</attribute>
+
+      <!-- The browse page's sample strip: 0 hidden, 1 shown. -->
+      <attribute persist="true" config_key="[TerminalWide],show_samplers">0</attribute>
+
       <attribute persist="true" config_key="[Skin],show_intro_outro_cues">1</attribute>
       <attribute persist="true" config_key="[Skin],show_library_coverart">0</attribute>
       <attribute persist="true" config_key="[Microphone],show_microphone">0</attribute>
@@ -215,6 +222,8 @@
       <SetVariable name="ArcColorFxMix">#ea3c96</SetVariable>
       <SetVariable name="ArcColorSuper">#93d64a</SetVariable>
       <SetVariable name="ArcColorFxParameter">#b7c7ad</SetVariable>
+      <!-- A sampler's level on the browse page's sample strip. -->
+      <SetVariable name="ArcColorSampler">#b7c7ad</SetVariable>
     </Scheme><!-- Btop -->
     <Scheme>
       <Name>Amber</Name>
@@ -334,6 +343,8 @@
       <SetVariable name="ArcColorFxMix">#ffb10a</SetVariable>
       <SetVariable name="ArcColorSuper">#ffb10a</SetVariable>
       <SetVariable name="ArcColorFxParameter">#ffb10a</SetVariable>
+      <!-- A sampler's level on the browse page's sample strip. -->
+      <SetVariable name="ArcColorSampler">#ffb10a</SetVariable>
     </Scheme><!-- Amber -->
     <Scheme>
       <Name>Green Phosphor</Name>
@@ -453,6 +464,8 @@
       <SetVariable name="ArcColorFxMix">#33ff3a</SetVariable>
       <SetVariable name="ArcColorSuper">#33ff3a</SetVariable>
       <SetVariable name="ArcColorFxParameter">#33ff3a</SetVariable>
+      <!-- A sampler's level on the browse page's sample strip. -->
+      <SetVariable name="ArcColorSampler">#33ff3a</SetVariable>
     </Scheme><!-- Green Phosphor -->
     <Scheme>
       <Name>White Phosphor</Name>
@@ -572,6 +585,8 @@
       <SetVariable name="ArcColorFxMix">#e4e6e7</SetVariable>
       <SetVariable name="ArcColorSuper">#e4e6e7</SetVariable>
       <SetVariable name="ArcColorFxParameter">#e4e6e7</SetVariable>
+      <!-- A sampler's level on the browse page's sample strip. -->
+      <SetVariable name="ArcColorSampler">#e4e6e7</SetVariable>
     </Scheme><!-- White Phosphor -->
   <!-- TERMINAL-WIDE-SCHEMES-END -->
   </Schemes>

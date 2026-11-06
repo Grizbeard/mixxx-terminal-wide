@@ -116,4 +116,6 @@
       <SetVariable name="ArcColorFxMix">{{fx}}</SetVariable>
       <SetVariable name="ArcColorSuper">{{accent}}</SetVariable>
       <SetVariable name="ArcColorFxParameter">{{fg}}</SetVariable>
+      <!-- A sampler's level on the browse page's sample strip. -->
+      <SetVariable name="ArcColorSampler">{{fg}}</SetVariable>
     </Scheme><!-- {{scheme_name}} -->

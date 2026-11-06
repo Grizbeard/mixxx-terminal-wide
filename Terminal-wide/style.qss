@@ -522,3 +522,86 @@ QMenu QCheckBox::indicator {
   margin-top: 6px;
   qproperty-alignment: 'AlignLeft | AlignVCenter';
 }
+
+/************** browse page: the sample strip ********************************/
+
+/* The toggle at the end of the search line: lettered like the page tabs, since
+   it is navigation - it opens part of the page - rather than a performance
+   control. */
+#SamplerToggle {
+  font-size: 24px;
+  font-weight: bold;
+  text-transform: lowercase;
+  margin: 0px 0px 0px 3px;
+  padding: 0px;
+}
+
+#SamplerStrip {
+  margin-top: 3px;
+}
+
+#SamplerSlot {
+  margin: 0px 1px;
+}
+
+#SamplerName {
+  font-size: 20px;
+  font-weight: bold;
+  qproperty-alignment: 'AlignCenter';
+}
+
+#SamplerTitle {
+  font-size: 22px;
+  margin-left: 4px;
+}
+
+/* Eight slots share 1920px, so a slot's four buttons get about 58px each, and
+   they are marks rather than words: play, stop, load (a down arrow, into the
+   slot) and eject. A size up from the deck rows' lettering, since a glyph
+   carries less ink than a word at the same size. The marks come from DejaVu
+   Sans Mono, the panel's monospace; Qt falls back to any font that has them
+   elsewhere. */
+#SamplerSlotButtons WPushButton {
+  font-size: 28px;
+  font-weight: bold;
+  margin: 1px;
+  padding: 0px;
+}
+
+/* DejaVu draws the down arrow with a stem a third the weight of the other
+   three marks, so it is set larger until its stroke matches theirs. Named
+   with the row, as an id plus a type outranks a bare id. */
+#SamplerSlotButtons #SamplerLoad {
+  font-size: 44px;
+}
+
+/************** browse page: the search keyboard *****************************/
+
+/* Plain QPushButtons inside the keyboard widget, not WPushButtons, so they
+   need rules of their own. Keys are 76px squares or so: big enough for a
+   thumb, letters set large and in the panel's monospace. */
+#SearchKeyboardBox {
+  margin-left: 3px;
+}
+
+#SearchKeyboard QPushButton {
+  font-family: "Cascadia Mono", "Consolas", "DejaVu Sans Mono", "Menlo", monospace;
+  font-size: 32px;
+  font-weight: bold;
+  margin: 1px;
+  padding: 0px;
+}
+
+/* clear, space, done and backspace: lowercase like every other label here,
+   and as large as the letters - the words have wide keys to sit in, and the
+   backspace mark is a glyph DejaVu draws small. */
+#SearchKeyboard QPushButton#KeyboardAction,
+#SearchKeyboard QPushButton#KeyboardSpace {
+  text-transform: lowercase;
+}
+
+/* The backspace key, picked out by its label: DejaVu's mark is drawn at about
+   half the size of a letter, so it is set at about twice the size. */
+#SearchKeyboard QPushButton[text="⌫"] {
+  font-size: 56px;
+}

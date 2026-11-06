@@ -198,6 +198,27 @@
             <SetVariable name="Text1">shown</SetVariable>
           </Template>
 
+          <Label>
+            <ObjectName>OptionsSection</ObjectName>
+            <Size>0me,32f</Size>
+            <Text>controller</Text>
+          </Label>
+
+          <!-- What the DJM-T1's SELECT button switches its four hot cue
+               buttons to: the controller's own SAMPLER mode, which the
+               DJM-T1_Custom mapping can instead make cue loops or loop rolls.
+               The mapping reads this control, so it does nothing for a
+               controller whose mapping does not. -->
+          <Template src="skin:templates/option_row.xml">
+            <SetVariable name="ObjectName">OptPadMode</SetVariable>
+            <SetVariable name="Caption">select: hot cues and</SetVariable>
+            <SetVariable name="ConfigKey">[TerminalWide],pad_mode</SetVariable>
+            <SetVariable name="NumberStates">3</SetVariable>
+            <SetVariable name="Text0">sampler</SetVariable>
+            <SetVariable name="Text1">cue loop</SetVariable>
+            <SetVariable name="Text2">loop roll</SetVariable>
+          </Template>
+
           <WidgetGroup>
             <ObjectName>OptionsFiller</ObjectName>
             <Layout>vertical</Layout>

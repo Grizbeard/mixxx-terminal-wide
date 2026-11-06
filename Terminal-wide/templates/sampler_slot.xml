@@ -1,0 +1,138 @@
+<!DOCTYPE template>
+<!--
+  Description:
+    One sampler slot on the browse page's sample strip.
+
+    Top line: the slot's level, the slot's name as the controller knows it
+    (A1..A4 under deck A's hot cue buttons, B1..B4 under deck B's), and the
+    title of what is loaded. Bottom line: play, stop, load, eject, as
+    four marks (&#9654; &#9632; &#11015; &#9167;) rather than words, so the row
+    reads as one set of transport controls.
+
+    play starts the sample from the top every time, the way a pad retriggers,
+    and is lit while it sounds. stop stops it and returns it to the top. load
+    puts the track selected in the library into the slot, which is why the
+    strip lives on the browse page: choosing and loading happen in one place.
+    A track can also be dragged onto the title.
+
+    The level knob is the sampler's pregain, unity at the centre: the same
+    control the controller's sampler layer used to turn with SHIFT + AUTO LOOP.
+
+  Variables:
+    Sampler: 1..8
+    Name:    the slot's name on the panel, e.g. A1
+-->
+<Template>
+  <WidgetGroup>
+    <ObjectName>SamplerSlot</ObjectName>
+    <Layout>vertical</Layout>
+    <SizePolicy>me,me</SizePolicy>
+    <Children>
+
+      <WidgetGroup>
+        <ObjectName>SamplerSlotHead</ObjectName>
+        <Layout>horizontal</Layout>
+        <Size>0me,50f</Size>
+        <Children>
+
+          <KnobComposed>
+            <ObjectName>SamplerLevel</ObjectName>
+            <TooltipId>pregain</TooltipId>
+            <Size>50f,50f</Size>
+            <MinAngle><Variable name="PotiMinAngle"/></MinAngle>
+            <MaxAngle><Variable name="PotiMaxAngle"/></MaxAngle>
+            <ArcRadius><Variable name="ArcRadius"/></ArcRadius>
+            <ArcThickness><Variable name="ArcThickness"/></ArcThickness>
+            <ArcBgThickness><Variable name="ArcBgThickness"/></ArcBgThickness>
+            <ArcBgColor><Variable name="ArcBgColor"/></ArcBgColor>
+            <ArcColor><Variable name="ArcColorSampler"/></ArcColor>
+            <ArcRoundCaps><Variable name="ArcRoundCaps"/></ArcRoundCaps>
+            <Connection>
+              <ConfigKey>[Sampler<Variable name="Sampler"/>],pregain</ConfigKey>
+            </Connection>
+          </KnobComposed>
+
+          <Label>
+            <ObjectName>SamplerName</ObjectName>
+            <Size>36f,50f</Size>
+            <Text><Variable name="Name"/></Text>
+          </Label>
+
+          <TrackProperty>
+            <ObjectName>SamplerTitle</ObjectName>
+            <TooltipId>track_title</TooltipId>
+            <Size>0me,50f</Size>
+            <Property>title</Property>
+            <Group>[Sampler<Variable name="Sampler"/>]</Group>
+            <Elide>right</Elide>
+          </TrackProperty>
+
+        </Children>
+      </WidgetGroup>
+
+      <WidgetGroup>
+        <ObjectName>SamplerSlotButtons</ObjectName>
+        <Layout>horizontal</Layout>
+        <Size>0me,54f</Size>
+        <Children>
+
+          <PushButton>
+            <ObjectName>SamplerPlay</ObjectName>
+            <SizePolicy>me,f</SizePolicy>
+            <Size>0me,52f</Size>
+            <NumberStates>2</NumberStates>
+            <State><Number>0</Number><Text>&#9654;</Text></State>
+            <State><Number>1</Number><Text>&#9654;</Text></State>
+            <Connection>
+              <ConfigKey>[Sampler<Variable name="Sampler"/>],cue_gotoandplay</ConfigKey>
+              <ButtonState>LeftButton</ButtonState>
+            </Connection>
+            <Connection>
+              <ConfigKey>[Sampler<Variable name="Sampler"/>],play_latched</ConfigKey>
+              <ConnectValueFromWidget>false</ConnectValueFromWidget>
+            </Connection>
+          </PushButton>
+
+          <PushButton>
+            <ObjectName>SamplerStop</ObjectName>
+            <SizePolicy>me,f</SizePolicy>
+            <Size>0me,52f</Size>
+            <NumberStates>1</NumberStates>
+            <State><Number>0</Number><Text>&#9632;</Text></State>
+            <Connection>
+              <ConfigKey>[Sampler<Variable name="Sampler"/>],cue_gotoandstop</ConfigKey>
+              <ButtonState>LeftButton</ButtonState>
+            </Connection>
+          </PushButton>
+
+          <PushButton>
+            <ObjectName>SamplerLoad</ObjectName>
+            <SizePolicy>me,f</SizePolicy>
+            <Size>0me,52f</Size>
+            <NumberStates>1</NumberStates>
+            <State><Number>0</Number><Text>&#11015;</Text></State>
+            <Connection>
+              <ConfigKey>[Sampler<Variable name="Sampler"/>],LoadSelectedTrack</ConfigKey>
+              <ButtonState>LeftButton</ButtonState>
+            </Connection>
+          </PushButton>
+
+          <PushButton>
+            <ObjectName>SamplerEject</ObjectName>
+            <TooltipId>eject</TooltipId>
+            <SizePolicy>me,f</SizePolicy>
+            <Size>0me,52f</Size>
+            <NumberStates>1</NumberStates>
+            <State><Number>0</Number><Text>&#9167;</Text></State>
+            <Connection>
+              <ConfigKey>[Sampler<Variable name="Sampler"/>],eject</ConfigKey>
+              <ButtonState>LeftButton</ButtonState>
+            </Connection>
+          </PushButton>
+
+        </Children>
+      </WidgetGroup>
+
+    </Children>
+  </WidgetGroup>
+</Template>

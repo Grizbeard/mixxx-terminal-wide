@@ -1,7 +1,17 @@
 <!DOCTYPE template>
 <!--
   Description:
-    The browse page: search line over the tree and the track table.
+    The browse page: search line over the tree and the track table, and
+    under them the sample strip, shown and hidden by the "samples" button at
+    the end of the search line.
+
+    Tapping the search line brings up a keyboard on the right of the track
+    table (OnScreenKeyboard, Mixxx patch 0018), for as long as the search line
+    has the focus: [Library],focused_widget is 1. Meanwhile the tree and the
+    sample strip step aside, so the results keep the full height and the left
+    1160px while you type. "done" runs the search and moves to the results,
+    and so does tapping a result; either takes the keyboard away. Without the
+    patch the keyboard is an unknown widget and the page is as before.
 
     Browsing is the dominant touch interaction on this appliance - the
     turntables do everything else - so it gets the whole screen rather than a
@@ -38,6 +48,22 @@
               <SearchBox></SearchBox>
             </Children>
           </WidgetGroup>
+
+          <!-- Shows and hides the sample strip. Remembered across restarts,
+               and off to begin with: browsing is what this page is for, and
+               the strip costs the track table two or three rows. -->
+          <PushButton>
+            <ObjectName>SamplerToggle</ObjectName>
+            <TooltipId>show_samplers</TooltipId>
+            <Size>160f,50f</Size>
+            <NumberStates>2</NumberStates>
+            <State><Number>0</Number><Text>samples</Text></State>
+            <State><Number>1</Number><Text>samples</Text></State>
+            <Connection>
+              <ConfigKey persist="true">[TerminalWide],show_samplers</ConfigKey>
+              <ButtonState>LeftButton</ButtonState>
+            </Connection>
+          </PushButton>
         </Children>
       </WidgetGroup>
 
@@ -63,6 +89,12 @@
                 <Children>
                   <LibrarySidebar></LibrarySidebar>
                 </Children>
+                <!-- Out of the way while typing a search. -->
+                <Connection>
+                  <ConfigKey>[Library],focused_widget</ConfigKey>
+                  <Transform><IsEqual>1</IsEqual><Not/></Transform>
+                  <BindProperty>visible</BindProperty>
+                </Connection>
               </WidgetGroup>
 
               <Library>
@@ -78,7 +110,106 @@
             </Children>
           </Splitter>
 
+          <!-- Ten keys of 76px across, five rows down the full height. -->
+          <WidgetGroup>
+            <ObjectName>SearchKeyboardBox</ObjectName>
+            <Layout>horizontal</Layout>
+            <Size>760f,0me</Size>
+            <Children>
+              <OnScreenKeyboard>
+                <ObjectName>SearchKeyboard</ObjectName>
+                <SizePolicy>me,me</SizePolicy>
+              </OnScreenKeyboard>
+            </Children>
+            <Connection>
+              <ConfigKey>[Library],focused_widget</ConfigKey>
+              <Transform><IsEqual>1</IsEqual></Transform>
+              <BindProperty>visible</BindProperty>
+            </Connection>
+          </WidgetGroup>
+
         </Children>
+      </WidgetGroup>
+
+      <!-- The sample strip: deck A's four samplers on the left and deck B's
+           on the right, in the order of the cue buttons they answer to in the
+           controller's sampler layer. Samplers 1-4 and 5-8, as the
+           DJM-T1_Custom mapping numbers them. At the foot of the page, so the
+           list keeps its place under the search line when the strip opens. -->
+      <WidgetGroup>
+        <ObjectName>SamplerStripBox</ObjectName>
+        <Layout>vertical</Layout>
+        <SizePolicy>me,max</SizePolicy>
+        <Children>
+
+      <WidgetGroup>
+        <ObjectName>SamplerStrip</ObjectName>
+        <Layout>horizontal</Layout>
+        <Size>0me,112f</Size>
+        <Children>
+
+          <WidgetGroup>
+            <ObjectName>SamplerBank</ObjectName>
+            <Layout>horizontal</Layout>
+            <SizePolicy>me,me</SizePolicy>
+            <Children>
+              <Template src="skin:templates/sampler_slot.xml">
+                <SetVariable name="Sampler">1</SetVariable>
+                <SetVariable name="Name">A1</SetVariable>
+              </Template>
+              <Template src="skin:templates/sampler_slot.xml">
+                <SetVariable name="Sampler">2</SetVariable>
+                <SetVariable name="Name">A2</SetVariable>
+              </Template>
+              <Template src="skin:templates/sampler_slot.xml">
+                <SetVariable name="Sampler">3</SetVariable>
+                <SetVariable name="Name">A3</SetVariable>
+              </Template>
+              <Template src="skin:templates/sampler_slot.xml">
+                <SetVariable name="Sampler">4</SetVariable>
+                <SetVariable name="Name">A4</SetVariable>
+              </Template>
+            </Children>
+          </WidgetGroup>
+
+          <WidgetGroup>
+            <ObjectName>SamplerBank</ObjectName>
+            <Layout>horizontal</Layout>
+            <SizePolicy>me,me</SizePolicy>
+            <Children>
+              <Template src="skin:templates/sampler_slot.xml">
+                <SetVariable name="Sampler">5</SetVariable>
+                <SetVariable name="Name">B1</SetVariable>
+              </Template>
+              <Template src="skin:templates/sampler_slot.xml">
+                <SetVariable name="Sampler">6</SetVariable>
+                <SetVariable name="Name">B2</SetVariable>
+              </Template>
+              <Template src="skin:templates/sampler_slot.xml">
+                <SetVariable name="Sampler">7</SetVariable>
+                <SetVariable name="Name">B3</SetVariable>
+              </Template>
+              <Template src="skin:templates/sampler_slot.xml">
+                <SetVariable name="Sampler">8</SetVariable>
+                <SetVariable name="Name">B4</SetVariable>
+              </Template>
+            </Children>
+          </WidgetGroup>
+
+        </Children>
+        <Connection>
+          <ConfigKey>[TerminalWide],show_samplers</ConfigKey>
+          <BindProperty>visible</BindProperty>
+        </Connection>
+      </WidgetGroup>
+
+        </Children>
+        <!-- Out of the way while typing a search. -->
+        <Connection>
+          <ConfigKey>[Library],focused_widget</ConfigKey>
+          <Transform><IsEqual>1</IsEqual><Not/></Transform>
+          <BindProperty>visible</BindProperty>
+        </Connection>
       </WidgetGroup>
 
     </Children>
